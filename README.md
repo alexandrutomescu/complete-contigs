@@ -1,13 +1,28 @@
 # complete-contigs
 An assembler of non-switching and complete contigs
 
-Usage: 
+# Installation
+
+In *src directory*, run
+
+	make
+
+This places the executable *complete-contigs* in the directory *bin*.
+
+If you want to install the program for removing non-maximal contigs, In *src directory*, run
+
+	make maximality
+
+# Usage
+
 	complete-contigs OPTIONS
 
 Brief example:
+
 	complete-contigs -i <input file without .fa extension>  -k 31 -a 2 [-t 4] [--fastq]
 
 Options:
+
 	-h, --help          show this help message and exit
 	--version           show program's version number and exit
 	-i STRING, --input=STRING
@@ -23,3 +38,9 @@ Options:
 	-g STRING, --genome-type=STRING
 						genome type: linear|circular (default: linear)
 	-b, --build-only    build the de bruijn graph and then exit
+
+# Removing non maximal contigs
+
+Run for example
+	
+	bin/maximality chr10.k31.linear.ec_contig
