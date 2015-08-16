@@ -1,4 +1,4 @@
-# complete-contigs
+# Complete-contigs
 An assembler of non-switching and complete contigs
 
 # Installation

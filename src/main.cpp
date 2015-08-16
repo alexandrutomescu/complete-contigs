@@ -1,9 +1,4 @@
-// compile command:
-// on my mac: g++ main.cpp -o ec-contigs -std=c++0x -I ./lemon-1.3.1/include -O3
-// on linux: g++ main.cpp -o ec-contigs -std=c++0x -I ~/local/include/ -O3 -fopenmp
-
 #include "utils.h"
-//#include "maximality.h"
 
 using namespace std;
 using namespace lemon;
@@ -57,7 +52,7 @@ vector<contig> compute_unitigs(const StaticDigraph& graph,
 	return ret;
 }
 
-vector<contig> compute_nice_contigs(const StaticDigraph& graph, 
+vector<contig> compute_non_switching_contigs(const StaticDigraph& graph, 
 	const StaticDigraph::NodeMap<size_t>& length, 
 	const StaticDigraph::NodeMap<size_t>& seqStart,
 	const size_t kmersize,
@@ -66,7 +61,7 @@ vector<contig> compute_nice_contigs(const StaticDigraph& graph,
 {
 	vector<contig> ret;
 
-	cout << "Entered nice_contigs" << endl;
+	cout << "Entered non_switching_contigs" << endl;
 
 	StaticDigraph::Node current_node;
 	string s;
@@ -74,8 +69,26 @@ vector<contig> compute_nice_contigs(const StaticDigraph& graph,
 	// iterating over all arcs
 	for (StaticDigraph::ArcIt arc(graph); arc != INVALID; ++arc)	
 	{
-		if (((countOutArcs(graph,graph.source(arc)) > 1) and (countInArcs(graph,graph.target(arc)) > 1)) or 
-		 	((countOutArcs(graph,graph.source(arc)) == 1) and (countInArcs(graph,graph.source(arc)) == 1)))
+		StaticDigraph::Node u,v,z;
+		u = graph.source(arc);
+		v = graph.target(arc);
+		z = INVALID;
+
+		// OLD: if (((countOutArcs(graph,graph.source(arc)) > 1) and (countInArcs(graph,graph.target(arc)) > 1)) or 
+		//  	((countOutArcs(graph,graph.source(arc)) == 1) and (countInArcs(graph,graph.source(arc)) == 1)))
+		// NEW: as in the paper
+		if (countInArcs(graph,u) == 1)
+		{
+			StaticDigraph::InArcIt in_arc(graph,u);
+			z = graph.source(in_arc);
+		}
+
+		if ( ((countOutArcs(graph,u) >= 2) and (countInArcs(graph,v) >= 2)) or
+			 ((z != INVALID) and (countOutArcs(graph,u) == 1) and 
+			 	( ((countOutArcs(graph,z) >= 2) and (countInArcs (graph,v) >= 2)) or 
+			 	  ((countInArcs (graph,z) >= 2) and (countOutArcs(graph,v) >= 2)) )
+			 )
+		   )
 		{
 			// traversing the outtig (forward)
 			contig entry;
@@ -119,7 +132,7 @@ vector<contig> compute_nice_contigs(const StaticDigraph& graph,
 	return ret;
 }
 
-vector<contig> compute_ec_contigs_2(StaticDigraph& graph, 
+vector<contig> compute_omnitigs_2(StaticDigraph& graph, 
 	StaticDigraph::NodeMap<size_t>& length, 
 	StaticDigraph::NodeMap<size_t>& seqStart,
 	set_of_pairs& safe_pairs,
@@ -131,7 +144,7 @@ vector<contig> compute_ec_contigs_2(StaticDigraph& graph,
 	size_t n_nodes = countNodes(graph);
 	ret.reserve(n_nodes * 100);
 
-	cout << "Entered compute_ec_contigs_2" << endl;
+	cout << "Entered compute_omnitigs_2" << endl;
 
 
 	StaticDigraph g1,g2,g3,g4,g5,g6,g7,g8,g9,g10,g11,g12,g13,g14,g15,g16;
@@ -317,6 +330,7 @@ void extend_pair(StaticDigraph& graph,
 	const set_of_pairs& safe_pairs,
 	StaticDigraph::Arc in_arc,
 	list<int> current_walk,
+	unordered_set<int> internal_nodes_set,
 	vector<int> bad_in_nbrs,
 	vector<contig>& collection_of_contigs,
 	unordered_set<int>& reported_arcs
@@ -327,97 +341,107 @@ void extend_pair(StaticDigraph& graph,
 	StaticDigraph::Node node = graph.target(in_arc);
 	// iterate over all out-neighbors
 	bool is_maximal = true;
-	for (StaticDigraph::OutArcIt out_arc(graph,node); out_arc != INVALID; ++out_arc)
+
+	// checking first whether graph.target(in_arc) is repeated in the contig
+	//if ( internal_nodes_set.count( graph.id(graph.target(in_arc)) ) == 0 )
+	if ( true )
 	{
-		// if the pair (in_arc,out_arc) is safe
-		if (safe_pairs.count(pair_of_ints(graph.id(in_arc),graph.id(out_arc))) > 0)
+		for (StaticDigraph::OutArcIt out_arc(graph,node); out_arc != INVALID; ++out_arc)
 		{
-			// check whether from 'node', which becomes an internal vertex, there is no path back to 
-			// the in-nbrs of the internal vertices of current_walk
-			StaticDigraph::NodeMap<bool> filterNodesMap(thread_graph,true);
-			FilterNodes<StaticDigraph> subgraph(thread_graph, filterNodesMap);
-			Bfs<FilterNodes<StaticDigraph>> visit(subgraph);
-			visit.init();
-
-			// adding the sources
-			for (StaticDigraph::OutArcIt out_arc2(graph,node); out_arc2 != INVALID; ++out_arc2)
+			// if the pair (in_arc,out_arc) is safe
+			if (safe_pairs.count(pair_of_ints(graph.id(in_arc),graph.id(out_arc))) > 0)
 			{
-				if (out_arc2 != out_arc)
+				// check whether from 'node', which becomes an internal vertex, there is no path back to 
+				// the in-nbrs of the internal vertices of current_walk
+				StaticDigraph::NodeMap<bool> filterNodesMap(thread_graph,true);
+				FilterNodes<StaticDigraph> subgraph(thread_graph, filterNodesMap);
+				Bfs<FilterNodes<StaticDigraph>> visit(subgraph);
+				visit.init();
+
+				// adding the sources
+				for (StaticDigraph::OutArcIt out_arc2(graph,node); out_arc2 != INVALID; ++out_arc2)
 				{
-					visit.addSource(originalNode2ThreadNode[graph.target(out_arc2)]);
-				}
-			}
-
-			// adding the targets of the search as the bad_in_nbrs
-			FilterNodes<StaticDigraph>::NodeMap<bool> visitTargets(subgraph,false);
-			// size_t n_added = 0;
-			vector<StaticDigraph::Node> bad_guys;
-			for (size_t i = 0; i < bad_in_nbrs.size(); i++)
-			{
-				visitTargets[originalNode2ThreadNode[graph.node(bad_in_nbrs[i])]] = true;
-				bad_guys.push_back(originalNode2ThreadNode[graph.node(bad_in_nbrs[i])]);
-			}
-
-			subgraph.disable(originalNode2ThreadNode[node]);
-			// if no bad_in_nbr is reached
-			if ((visit.queueSize() == 0) or (visit.start(visitTargets) == INVALID))
-			{
-				// check that indeed all bad guys are not reached
-				// LEMON seems to have a bug and the above check is not sufficient
-				bool no_bad_inbr_reached = true;
-				for (size_t i = 0; i < bad_guys.size(); i++)
-				{
-					if (visit.reached(bad_guys[i]))
+					if (out_arc2 != out_arc)
 					{
-						no_bad_inbr_reached = false;
-						break;
+						visit.addSource(originalNode2ThreadNode[graph.target(out_arc2)]);
 					}
 				}
 
-				// if yes, then add the target of out_arc to current_walk
-				if (no_bad_inbr_reached)
+				// adding the targets of the search as the bad_in_nbrs
+				FilterNodes<StaticDigraph>::NodeMap<bool> visitTargets(subgraph,false);
+				// size_t n_added = 0;
+				vector<StaticDigraph::Node> bad_guys;
+				for (size_t i = 0; i < bad_in_nbrs.size(); i++)
 				{
-					list<int> new_walk = current_walk;
-					new_walk.push_back(graph.id(graph.target(out_arc)));
+					visitTargets[originalNode2ThreadNode[graph.node(bad_in_nbrs[i])]] = true;
+					bad_guys.push_back(originalNode2ThreadNode[graph.node(bad_in_nbrs[i])]);
+				}
 
-					// add the in-nbrs of node not on current_walk to bad_in_nbrs
-					vector<int> new_bad_in_nbrs = bad_in_nbrs;
-					for (StaticDigraph::InArcIt in_arc2(graph,node); in_arc2 != INVALID; ++in_arc2)
+				subgraph.disable(originalNode2ThreadNode[node]);
+				// if no bad_in_nbr is reached
+				if ((visit.queueSize() == 0) or (visit.start(visitTargets) == INVALID))
+				{
+					// check that indeed all bad guys are not reached
+					// LEMON seems to have a bug and the above check is not sufficient
+					bool no_bad_inbr_reached = true;
+					for (size_t i = 0; i < bad_guys.size(); i++)
 					{
-						if (in_arc2 != in_arc)
+						if (visit.reached(bad_guys[i]))
 						{
-							new_bad_in_nbrs.push_back(graph.id(graph.source(in_arc2)));
+							no_bad_inbr_reached = false;
+							break;
 						}
 					}
-					// and recurse
-					is_maximal = false;
-					#pragma omp critical
-					{
-						reported_arcs.insert(graph.id(out_arc));
-					}
 
-					// if in_arc and out_arc are arcs between the same two vertices, but in opposite directions
-					// then we must stop the walk here
-					// because there is no other way to stop it
-					if (graph.source(in_arc) == graph.target(out_arc))
+					// if yes, then add the target of out_arc to current_walk
+					if (no_bad_inbr_reached)
 					{
-						contig entry;
-						entry.nodes = new_walk;
+						list<int> new_walk = current_walk;
+						unordered_set<int> new_internal_nodes_set = internal_nodes_set;
+
+						new_walk.push_back(graph.id(graph.target(out_arc)));
+						new_internal_nodes_set.insert(graph.id(graph.target(out_arc)));
+
+						// add the in-nbrs of node not on current_walk to bad_in_nbrs
+						vector<int> new_bad_in_nbrs = bad_in_nbrs;
+						for (StaticDigraph::InArcIt in_arc2(graph,node); in_arc2 != INVALID; ++in_arc2)
+						{
+							if (in_arc2 != in_arc)
+							{
+								new_bad_in_nbrs.push_back(graph.id(graph.source(in_arc2)));
+							}
+						}
+						// and recurse
+						is_maximal = false;
 						#pragma omp critical
 						{
-							collection_of_contigs.push_back(entry);
+							reported_arcs.insert(graph.id(out_arc));
 						}
 
-					} 
-					else
-					{
-						extend_pair(graph, thread_graph, originalNode2ThreadNode, safe_pairs, out_arc, new_walk, new_bad_in_nbrs, collection_of_contigs, reported_arcs);		
+						// if in_arc and out_arc are arcs between the same two vertices, but in opposite directions
+						// then we must stop the walk here
+						// because there is no other way to stop it
+						if (graph.source(in_arc) == graph.target(out_arc))
+						{
+							contig entry;
+							entry.nodes = new_walk;
+							#pragma omp critical
+							{
+								collection_of_contigs.push_back(entry);
+							}
+
+						} 
+						else
+						{
+							extend_pair(graph, thread_graph, originalNode2ThreadNode, safe_pairs, out_arc, new_walk, new_internal_nodes_set, new_bad_in_nbrs, collection_of_contigs, reported_arcs);		
+						}
 					}
 				}
 			}
 		}
-	}
 
+	}	
+	
 	// if we didn't manage to extend the contig, then it is right-maximal
 	// and we add it to the collection of contigs
 	// WARNING: it may not be left-maximal
@@ -434,13 +458,13 @@ void extend_pair(StaticDigraph& graph,
 }
 
 
-vector<contig> compute_ec_contigs(StaticDigraph& graph, 
+vector<contig> compute_omnitigs(StaticDigraph& graph, 
 	StaticDigraph::NodeMap<size_t>& length, 
 	StaticDigraph::NodeMap<size_t>& seqStart,
 	const set_of_pairs& safe_pairs
 	)
 {
-	cout << "Entered ec_contigs" << endl;
+	cout << "Entered omnitigs" << endl;
 	vector<contig> ret;
 	unordered_set<int> reported_arcs;
 	size_t progress = 0;
@@ -502,6 +526,9 @@ vector<contig> compute_ec_contigs(StaticDigraph& graph,
 		current_walk.push_back(graph.id(graph.source(second_arc)));
 		current_walk.push_back(graph.id(graph.target(second_arc)));
 
+		unordered_set<int> internal_nodes_set;
+		internal_nodes_set.insert(graph.id(graph.source(second_arc)));
+
 		// cout << graph.id(graph.source(first_arc)) << ", " << graph.id(graph.source(second_arc)) << ", " << graph.id(graph.target(second_arc)) << endl;
 
 		#pragma omp critical
@@ -535,7 +562,7 @@ vector<contig> compute_ec_contigs(StaticDigraph& graph,
 
 		int tid = omp_get_thread_num();
 		tid++;
-    	extend_pair(graph,GET_GRAPH(tid),GET_NODE_MAP(tid), safe_pairs, second_arc, current_walk, bad_in_nbrs, ret, reported_arcs);
+    	extend_pair(graph,GET_GRAPH(tid),GET_NODE_MAP(tid), safe_pairs, second_arc, current_walk, internal_nodes_set, bad_in_nbrs, ret, reported_arcs);
 	}
 
 	// including also the arcs not reported in some ec-contig
@@ -569,14 +596,17 @@ int main(int argc, char **argv)
     bool circular_genome = false;
 	bool build_only = false;
 	bool input_from_reads = false;
+	bool do_not_contract_arcs;
+	bool do_not_compute_omnitigs;
 	int abundance = 1;
 	N_THREADS = 1;
+	struct timespec start_clock, finish_clock;
 
 
 	// command line argument parser
 	string usage = "\n  %prog OPTIONS"
 		"\n\nBrief example:"
-		"\n  %prog -i <input file without extension> [--fastq] -k 31 -a 2 [-t 4]";
+		"\n  %prog -i <input file> -k 31 [-a 2] [-t 4]";
 	const string version = "%prog 0.2\nCopyright (C) 2014-2015 Alexandru Tomescu & Paul Medvedev\n"
 		"License GPLv3+: GNU GPL version 3 or later "
 		"<http://gnu.org/licenses/gpl.html>.\n"
@@ -591,22 +621,27 @@ int main(int argc, char **argv)
     	.description(desc)
     	.epilog(epilog);
 
-	parser.add_option("-i", "--input") .type("string") .dest("i") .set_default("") .help("input file, without extension (default assumed extension .fa)");
-	parser.add_option("-q", "--fastq") .action("store_true") .dest("fastq_input") .help("add this flag if the input is a fastq file");
+	parser.add_option("-i", "--input") .type("string") .dest("i") .set_default("") .help("input file (.fasta/.fa/.fastq)");
 	parser.add_option("-k", "--kmersize") .type("int") .dest("k") .action("store") .set_default(31) .help("kmer size (default: %default)");
 	parser.add_option("-a", "--abundance") .type("int") .dest("a") .action("store") .set_default(1) .help("minimum abundance (default: %default)");
-	parser.add_option("-t", "--threads") .type("int") .dest("t") .action("store") .set_default(1) .help("number of threads, in [1..16] (default: %default)");
+	parser.add_option("-t", "--threads") .type("int") .dest("t") .action("store") .set_default(8) .help("number of threads, in [1..16] (default: %default)");
 	parser.add_option("-g", "--genome-type") .action("store") .dest("g") .type("string") .set_default("linear") .help("genome type: linear|circular (default: %default)");
 	parser.add_option("-b", "--build-only") .action("store_true") .dest("build_only") .help("build the de bruijn graph and then exit");
-	
+	parser.add_option("-c", "--nocontract") .action("store_true") .set_default(false) .dest("nocontract") .help("do not contract arcs");
+	parser.add_option("-x", "--noomnitigs") .action("store_true") .set_default(false) .dest("noomnitigs") .help("do not compute omnitigs");
+
 	optparse::Values& options = parser.parse_args(argc, argv);
 
 	inputFileName = (string) options.get("i");
-	input_from_reads = (options.get("fastq_input") ? true : false);
+	input_from_reads = (inputFileName.substr(inputFileName.find_last_of(".") + 1) == "fastq") ? true : false;
+	input_from_reads = (inputFileName.substr(inputFileName.find_last_of(".") + 1) == "FASTQ") ? true : false;
+
 	kmersize = (size_t) options.get("k");
 	abundance = (int) options.get("a");
 	N_THREADS = (int) options.get("t");
 	build_only = (options.get("build_only") ? true : false);
+	do_not_contract_arcs = (options.get("nocontract") ? true : false);
+	do_not_compute_omnitigs = (options.get("noomnitigs") ? true : false);
 	genome_type = (string) options.get("g");
 
 	if (inputFileName == "")
@@ -639,19 +674,23 @@ int main(int argc, char **argv)
 
 	if (input_from_reads)
 	{
-		if (EXIT_SUCCESS != load_data_from_reads(sequence, seqLength, inputFileName, kmersize, circular_genome, abundance, graph, length, seqStart, safe_pairs))
+		if (EXIT_SUCCESS != load_data_from_reads(sequence, seqLength, inputFileName, kmersize, circular_genome, do_not_contract_arcs, abundance, graph, length, seqStart, safe_pairs))
 		{
 			return EXIT_FAILURE;
 		}
 	}
 	else
 	{
-		if (EXIT_SUCCESS != load_data(sequence, seqLength, inputFileName, kmersize, circular_genome, graph, length, seqStart, safe_pairs))
+		if (EXIT_SUCCESS != load_data(sequence, seqLength, inputFileName, kmersize, circular_genome, do_not_contract_arcs, graph, length, seqStart, safe_pairs))
 		{
 			return EXIT_FAILURE;
 		}		
 	}
 
+
+	/*stats*/ ofstream fileStats;
+	/*stats*/ fileStats.open(inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type + ".stats.csv");
+	/*stats*/ fileStats << "algorithm,number of nodes,number of edges,runtime (sec)" << endl;
 
 	std::cout.setf(std::ios::boolalpha);
 	cout << "Graph has " << countNodes(graph) << " nodes" << endl;
@@ -660,13 +699,13 @@ int main(int argc, char **argv)
 	cout << "Graph has unary nodes: " << count_unary_nodes(graph) << endl;
 	if (parallelFree(graph) == false)
 	{
-		cerr << "The graph still has parallel arcs. Contact a developer." << endl;
-		return EXIT_FAILURE;
+		// cerr << "The graph still has parallel arcs. Contact a developer." << endl;
+		// return EXIT_FAILURE;
 	}
 	if (count_unary_arcs(graph) != 0)
 	{
-		cerr << "Graph still has unary arcs. Contact a developer." << endl;	
-		return EXIT_FAILURE;
+		// cerr << "Graph still has unary arcs. Contact a developer." << endl;	
+		// return EXIT_FAILURE;
 	}
 
 	if (build_only)
@@ -674,6 +713,7 @@ int main(int argc, char **argv)
 		return EXIT_SUCCESS;
 	}
 
+	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
 	cout << "Time: " << currentDateTime();
 	vector<contig> unitigs;
 	unitigs = compute_unitigs(graph, length, seqStart, kmersize, sequence, inputFileName);
@@ -682,54 +722,69 @@ int main(int argc, char **argv)
 	cout << "Statistics on unitigs:" << endl;
 	cout << "----------------------" << endl;
 	compute_statistics(unitigs, seqLength);
-	print_collection(unitigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".unitig");
+	print_collection(unitigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".unitigs");
 	cout << "Time: " << currentDateTime();
+	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
+	/*stats*/ fileStats << "unitigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
 
-	vector<contig> nice_contigs;
-	nice_contigs = compute_nice_contigs(graph, length, seqStart, kmersize, sequence, inputFileName);
-	populate_with_strings(sequence, kmersize, graph, seqStart, length, nice_contigs);
+
+	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
+	vector<contig> non_switching_contigs;
+	non_switching_contigs = compute_non_switching_contigs(graph, length, seqStart, kmersize, sequence, inputFileName);
+	populate_with_strings(sequence, kmersize, graph, seqStart, length, non_switching_contigs);
 	cout << "----------------------" << endl;
-	cout << "Statistics on nice contigs:" << endl;
+	cout << "Statistics on non-switching contigs:" << endl;
 	cout << "----------------------" << endl;
-	compute_statistics(nice_contigs, seqLength);
-	print_collection(nice_contigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".nicecontig");
+	compute_statistics(non_switching_contigs, seqLength);
+	print_collection(non_switching_contigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".non-switching-contigs");
 	cout << "Time: " << currentDateTime();
+	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
+	/*stats*/ fileStats << "non-switching contigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
 
-	// vector<contig> ec_contigs_2;
-	// ec_contigs_2 = compute_ec_contigs_2(graph, length, seqStart, safe_pairs, kmersize, sequence, inputFileName);
-	// populate_with_strings(sequence, kmersize, graph, seqStart, length, ec_contigs_2);
+	// vector<contig> omnitigs_2;
+	// omnitigs_2 = compute_omnitigs_2(graph, length, seqStart, safe_pairs, kmersize, sequence, inputFileName);
+	// populate_with_strings(sequence, kmersize, graph, seqStart, length, omnitigs_2);
 	// cout << "----------------------" << endl;
-	// cout << "Statistics on ec_contigs_2:" << endl;
+	// cout << "Statistics on omnitigs_2:" << endl;
 	// cout << "----------------------" << endl;
-	// compute_statistics(ec_contigs_2, seqLength);
-	// print_collection(ec_contigs_2, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".ec_contigs_2");
+	// compute_statistics(omnitigs_2, seqLength);
+	// print_collection(omnitigs_2, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".omnitigs_2");
 
-	cout << "safe_pairs.size(): " << safe_pairs.size() << endl;
-	if (safe_pairs.size() == 0)
+	if (! do_not_compute_omnitigs)
 	{
-		cout << "Will compute safe pairs" << endl;
-		vector<contig> ec_contigs_2;
-		ec_contigs_2 = compute_ec_contigs_2(graph, length, seqStart, safe_pairs, kmersize, sequence, inputFileName);
-		save_safe_pairs(safe_pairs, inputFileName, kmersize, genome_type);
-		//populate_with_strings(sequence, kmersize, graph, seqStart, length, ec_contigs_2);
-		//print_collection(ec_contigs_2, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".ec_contig_2");
-	}
+		/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
+		cout << "safe_pairs.size(): " << safe_pairs.size() << endl;
+		if (true or (safe_pairs.size() == 0))
+		{
+			safe_pairs.clear();
+			cout << "Will compute safe pairs" << endl;
+			vector<contig> omnitigs_2;
+			omnitigs_2 = compute_omnitigs_2(graph, length, seqStart, safe_pairs, kmersize, sequence, inputFileName);
+			save_safe_pairs(safe_pairs, inputFileName, kmersize, genome_type);
+			//populate_with_strings(sequence, kmersize, graph, seqStart, length, omnitigs_2);
+			//print_collection(omnitigs_2, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".ec_contig_2");
+		}
 
-	vector<contig> ec_contigs;
-	try_loading_ec_contigs(ec_contigs,inputFileName,kmersize,genome_type);
-	if (ec_contigs.size() == 0)
-	{
-		ec_contigs = compute_ec_contigs(graph, length, seqStart, safe_pairs);	
+		vector<contig> omnitigs;
+		try_loading_omnitigs(omnitigs,inputFileName,kmersize,genome_type);
+		if (omnitigs.size() == 0)
+		{
+			omnitigs = compute_omnitigs(graph, length, seqStart, safe_pairs);	
+		}
+		
+		// remove_non_maximal_contigs(omnitigs); 
+		populate_with_strings(sequence, kmersize, graph, seqStart, length, omnitigs);
+		cout << "----------------------" << endl;
+		cout << "Statistics on omnitigs:" << endl;
+		cout << "----------------------" << endl;
+		compute_statistics(omnitigs, seqLength);
+		print_collection(omnitigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".omnitigs");
+		cout << "Time: " << currentDateTime();	
+		/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
+		/*stats*/ fileStats << "omnitigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
 	}
 	
-	// remove_non_maximal_contigs(ec_contigs); 
-	populate_with_strings(sequence, kmersize, graph, seqStart, length, ec_contigs);
-	cout << "----------------------" << endl;
-	cout << "Statistics on ec_contigs:" << endl;
-	cout << "----------------------" << endl;
-	compute_statistics(ec_contigs, seqLength);
-	print_collection(ec_contigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".ec_contig");
-	cout << "Time: " << currentDateTime();
+	fileStats.close();
 
 	return EXIT_SUCCESS;
 }

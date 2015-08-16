@@ -165,12 +165,12 @@ void save_safe_pairs(set_of_pairs& safe_pairs,
 	spFile.close();
 }
 
-void try_loading_ec_contigs(vector<contig>& ec_contigs,
+void try_loading_omnitigs(vector<contig>& omnitigs,
 	const string inputFileName, 
 	const size_t kmersize,
 	const string genome_type)
 {
-	string ecFileName = inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type + ".ec_contigs.nonmaximal";
+	string ecFileName = inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type + ".omnitigs.nonmaximal";
 	ifstream ecFile;
 }
 
@@ -218,7 +218,10 @@ void contract_arcs(ListDigraph& graph,
 		u = graph.source(a);
 		v = graph.target(a);
 
-		if ((countOutArcs(graph,u) == 1) and (countInArcs(graph,v) == 1))
+		// OLD: if ((countOutArcs(graph,u) == 1) and (countInArcs(graph,v) == 1))
+		// NEW: if the arc (u,v) is the 'middle' arc of a unitig, then contract it
+		if ((countOutArcs(graph,u) == 1) and (countInArcs(graph,u) == 1) and
+			(countOutArcs(graph,v) == 1) and (countInArcs(graph,v) == 1))
 		{
 			arcsToContract.push_back(a);
 		}
@@ -296,7 +299,10 @@ void contract_arcs_from_reads(ListDigraph& graph,
 		u = graph.source(a);
 		v = graph.target(a);
 
-		if ((countOutArcs(graph,u) == 1) and (countInArcs(graph,v) == 1))
+		// OLD: if ((countOutArcs(graph,u) == 1) and (countInArcs(graph,v) == 1))
+		// NEW: if the arc (u,v) is the 'middle' arc of a unitig, then contract it
+		if ((countOutArcs(graph,u) == 1) and (countInArcs(graph,u) == 1) and
+			(countOutArcs(graph,v) == 1) and (countInArcs(graph,v) == 1))
 		{
 			arcsToContract.push_back(a);
 		}
@@ -467,6 +473,7 @@ int load_data(string& sequence,
 	const string& inputFileName,
 	const size_t kmersize,
 	const bool circular_genome,
+	const bool do_not_contract_arcs,
 	StaticDigraph& graph,
 	StaticDigraph::NodeMap<size_t>& length,
 	StaticDigraph::NodeMap<size_t>& seqStart,
@@ -486,7 +493,7 @@ int load_data(string& sequence,
 	{
 		ifstream sequenceFile;
 		string line;
-        sequenceFile.open(inputFileName + ".fa");
+        sequenceFile.open(inputFileName);
         getline(sequenceFile, line); // reading the header
         while (getline(sequenceFile, line))
         {
@@ -514,7 +521,10 @@ int load_data(string& sequence,
 		ListDigraph::NodeMap<size_t> temporary_seqStart(temporary_graph);
 
 		construct_graph(temporary_graph, temporary_length, temporary_seqStart, kmersize, circular_genome, sequence, seqLength, 1);
-		contract_arcs(temporary_graph, temporary_length, temporary_seqStart, kmersize);
+		if (not do_not_contract_arcs)
+		{
+			contract_arcs(temporary_graph, temporary_length, temporary_seqStart, kmersize);
+		}
 		//contract_arcs(temporary_graph, temporary_length, temporary_seqStart, kmersize);
 		// saving graph to file
 		try 
@@ -596,6 +606,7 @@ int load_data_from_reads(string& sequence,
 	const string& inputFileName,
 	const size_t kmersize,
 	const bool circular_genome,
+	const bool do_not_contract_arcs,
 	const int abundance,
 	StaticDigraph& graph,
 	StaticDigraph::NodeMap<size_t>& length,
@@ -618,7 +629,7 @@ int load_data_from_reads(string& sequence,
 		{
 			ifstream sequenceFile;
 			string line;
-	        sequenceFile.open(inputFileName + ".fastq");
+	        sequenceFile.open(inputFileName);
 	        
 	        while (getline(sequenceFile, line)) // reading the header
 	        {
@@ -645,7 +656,10 @@ int load_data_from_reads(string& sequence,
 		ListDigraph::NodeMap<size_t> temporary_seqStart(temporary_graph);
 
 		construct_graph(temporary_graph, temporary_length, temporary_seqStart, kmersize, circular_genome, sequence, seqLength, abundance);
-		contract_arcs_from_reads(temporary_graph, temporary_length, temporary_seqStart, kmersize, sequence);
+		if (not do_not_contract_arcs)
+		{
+			contract_arcs_from_reads(temporary_graph, temporary_length, temporary_seqStart, kmersize, sequence);	
+		}
 		//contract_arcs(temporary_graph, temporary_length, temporary_seqStart, kmersize);
 		// saving graph to file
 		try 
