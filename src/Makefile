@@ -3,11 +3,11 @@ FILES_ASSEMBLER = main.cpp utils.cpp OptionParser.cpp
 FILES_MAXIMALITY = maximality.cpp
 OUT_EXE_ASSEMBLER = complete-contigs
 OUT_EXE_MAXIMALITY = maximality
-PATH_TO_LEMON = ~/local/include/
+PATH_TO_LEMON = ./lemon_binaries_linux/include/
 
-CPPFLAGS_ASSEMBLER = -O3 -fopenmp -std=c++0x -I $(PATH_TO_LEMON) -Wall
+CPPFLAGS_ASSEMBLER = -O3 -fopenmp -std=c++0x -I $(PATH_TO_LEMON)
 
-CPPFLAGS_MAXIMALITY = -O3 -fopenmp -std=c++0x -DMASSIVE_DATA_RLCSA -Wall
+CPPFLAGS_MAXIMALITY = -O3 -fopenmp -std=c++0x -DMASSIVE_DATA_RLCSA
 
 COMPILE_RLCSA = mkdir -p ../bin/rlcsa; cp -r rlcsa/ ../bin/; cd ../bin/rlcsa; make build_rlcsa; cd ../../src/
 
