@@ -52,6 +52,50 @@ vector<contig> compute_unitigs(const StaticDigraph& graph,
 	return ret;
 }
 
+vector<contig> compute_unitigs_by_traversal(const ListDigraph& graph)
+{
+	vector<contig> ret;
+
+	cout << "Entered compute_unitigs_by_traversal" << endl;
+
+	ListDigraph::Node current_node;
+
+	// iterating over all arcs
+	for (ListDigraph::ArcIt arc(graph); arc != INVALID; ++arc)	
+	{
+		ListDigraph::Node u;
+		u = graph.source(arc);
+
+		if ((countInArcs (graph,u) > 1) or (countOutArcs(graph,u) > 1))
+		{
+			// traversing the outtig (forward)
+			contig entry;
+
+			entry.nodes.push_back(graph.id(u));
+
+			//cout << "creating a nice contig form arc " << graph.id(graph.source(arc)) << "," << graph.id(graph.target(arc)) << endl;
+			current_node = graph.target(arc);
+			while ((countOutArcs(graph, current_node) == 1) and (countInArcs(graph, current_node) == 1))
+			{
+				entry.nodes.push_back(graph.id(current_node));
+				ListDigraph::OutArcIt out_arc(graph,current_node);
+				if (current_node == graph.target(out_arc))
+				{
+					entry.nodes.push_back(graph.id(current_node));
+					break;
+				}
+				current_node = graph.target(out_arc);
+				//cout << "seen " << graph.id(current_node) << " forward" << endl;
+			}
+			entry.nodes.push_back(graph.id(current_node));
+
+			ret.push_back(entry);
+		}		
+	}
+
+	return ret;
+}
+
 vector<contig> compute_non_switching_contigs(const StaticDigraph& graph, 
 	const StaticDigraph::NodeMap<size_t>& length, 
 	const StaticDigraph::NodeMap<size_t>& seqStart,
@@ -132,7 +176,7 @@ vector<contig> compute_non_switching_contigs(const StaticDigraph& graph,
 	return ret;
 }
 
-vector<contig> compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static, 
+void compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static, 
 	const StaticDigraph::NodeMap<size_t>& length_static, 
 	const StaticDigraph::NodeMap<size_t>& seqStart_static,
 	const size_t kmersize,
@@ -152,116 +196,269 @@ vector<contig> compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_sta
 	ListDigraph::NodeMap<size_t> seqStart(graph);
 
 	DigraphCopy<StaticDigraph, ListDigraph> copy_graph(graph_static, graph);
+	ListDigraph::NodeMap<StaticDigraph::Node> graph_to_graph_static_node(graph);
+	// copy_graph.nodeCrossRef(graph_to_graph_static_node);
 	copy_graph.nodeMap(length_static, length);
 	copy_graph.nodeMap(seqStart_static, seqStart);
 	copy_graph.run();
 	// finished copying into graph
 
+	// for (ListDigraph::NodeIt node(graph); node != INVALID; ++node)
+	// {
+	// 	cout << "length[node]=" << length[node] << " seqStart[node]=" << seqStart[node] << endl;
+	// }
+
+	vector<ListDigraph::Node> forwardYNodes, backwardYNodes;
 	vector<ListDigraph::Arc> arcsToContract;
-
-
-	size_t progress = 0;
+	size_t n_nodes = countNodes(graph);
 	size_t n_arcs = countArcs(graph);
+	forwardYNodes.reserve(n_nodes);
+	backwardYNodes.reserve(n_nodes);
 	arcsToContract.reserve(n_arcs);
+	bool applied_reduction = true;
+	size_t progress = 0;
 
-	for (ListDigraph::ArcIt a(graph); a != INVALID; ++a)
+	while (applied_reduction)
 	{
-		if (progress % 100000 == 0)
-		{
-			cout << "Compacting phase, arc : #" << progress << "/" << n_arcs << " ";
-		  	cout << "Time: " << currentDateTime();
-		}
-		progress++;
+		applied_reduction = false;
 
-		ListDigraph::Node u,v;
-		u = graph.source(a);
-		v = graph.target(a);
-
-		if ((countOutArcs(graph,u) == 1) and (countInArcs(graph,v) == 1))
+		///////////////////////////////////
+		// we first try to contract arcs
+		///////////////////////////////////
+		progress = 1;
+		for (ListDigraph::ArcIt a(graph); a != INVALID; ++a)
 		{
-			arcsToContract.push_back(a);
+			if (progress % 100000 == 0)
+			{
+				cout << "Finding arcs to contract, arc : #" << progress << "/" << n_arcs << " ";
+			  	cout << "Time: " << currentDateTime();
+			}
+			progress++;
+
+			ListDigraph::Node u,v;
+			u = graph.source(a);
+			v = graph.target(a);
+
+			if ((countOutArcs(graph,u) == 1) and (countInArcs(graph,v) == 1))
+			{
+				// arcsToContract.push_back(a);
+				// applied_reduction = true;
+				break;
+			}
 		}
+		// cout << "Found " << arcsToContract.size() << " arcs to contract" << endl;
+
+		progress = 1;
+		for (auto arc : arcsToContract)
+		{
+			if (progress % 100000 == 0)
+			{
+				cout << "Contracting arcs, arc : #" << progress << "/" << arcsToContract.size() << " ";
+			  	cout << "Time: " << currentDateTime();
+			}
+			progress++;
+
+			if (not graph.valid(arc))
+			{
+				cout << "arc not valid" << endl;
+			}
+
+			ListDigraph::Node u,v;
+			u = graph.source(arc);
+			v = graph.target(arc);
+			length[u] = length[u] + length[v] - (kmersize - 1);
+
+			//graph.contract(u, v);
+			for (ListDigraph::OutArcIt out_arc(graph,v); out_arc != INVALID;)
+			{
+				ListDigraph::OutArcIt next_out_arc = out_arc;
+				++next_out_arc;
+				graph.changeSource(out_arc,u);
+				out_arc = next_out_arc;
+			}
+			graph.erase(v);
+		}
+
+		///////////////////////////////////
+		// now we try the forward Ynodes
+		///////////////////////////////////
+		progress = 1;
+		for (ListDigraph::NodeIt node(graph); node != INVALID; ++node)
+		{
+			if (progress % 100000 == 0)
+			{
+				cout << "Finding forwardYnodes , node: #" << progress << "/" << n_arcs << " ";
+			  	cout << "Time: " << currentDateTime();
+			}
+			progress++;
+
+			// forwardYNodes
+			if ((countInArcs(graph,node) == 1) and (countOutArcs(graph,node) > 1))
+			{
+				if (node != graph.source( ListDigraph::InArcIt(graph,node) ) )
+				{
+					forwardYNodes.push_back(node);
+					applied_reduction = true;	
+					break;				
+				}
+			}
+		}
+		// cout << "Found " << forwardYNodes.size() << " forwardYNodes" << endl;
+
+		// we reduce the forward nodes
+		progress = 1;
+		for (int i = 0; i < forwardYNodes.size(); i++)
+		{
+			if (progress % 100000 == 0)
+			{
+				cout << "Reducing forwardYNodes, node: #" << progress << "/" << forwardYNodes.size() << " ";
+			  	cout << "Time: " << currentDateTime();
+			}
+			progress++;
+
+			ListDigraph::Node node = forwardYNodes[i];
+
+			if (not graph.valid(node))
+			{
+				cout << "node not valid" << endl;
+			}
+
+			ListDigraph::InArcIt in_arc(graph,node);
+			ListDigraph::Node node_predecessor = graph.source(in_arc);
+
+			ListDigraph::OutArcIt out_arc(graph,node);
+			++out_arc;
+			while (out_arc != INVALID)
+			{				
+				ListDigraph::OutArcIt next_out_arc = out_arc;
+				++next_out_arc;
+
+				ListDigraph::Node node_prime = graph.addNode();
+				length[node_prime] = length[node];
+				seqStart[node_prime] = seqStart[node];
+				graph.addArc(node_predecessor, node_prime);
+				graph.changeSource(out_arc, node_prime);
+
+				out_arc = next_out_arc;
+			}
+			//graph.erase(node);
+		}	
+
+		///////////////////////////////////
+		// now we try the backward Ynodes
+		///////////////////////////////////
+		progress = 1;
+		for (ListDigraph::NodeIt node(graph); node != INVALID; ++node)
+		{
+			if (progress % 100000 == 0)
+			{
+				cout << "Finding backwardYnodes , node: #" << progress << "/" << n_arcs << " ";
+			  	cout << "Time: " << currentDateTime();
+			}
+			progress++;
+
+			// backwardYNodes
+			if ((countInArcs(graph,node) > 1) and (countOutArcs(graph,node) == 1))
+			{
+				if (node != graph.target( ListDigraph::OutArcIt(graph,node) ) )
+				{
+					backwardYNodes.push_back(node);
+					applied_reduction = true;
+					break;	
+				}
+			}
+		}
+		// cout << "Found " << backwardYNodes.size() << " backwardYNodes" << endl;
+
+		// we reduce the backward nodes
+		progress = 1;
+		for (int i = 0; i < backwardYNodes.size(); i++)
+		{
+			if (progress % 100000 == 0)
+			{
+				cout << "Reducing backwardYNodes, node: #" << progress << "/" << backwardYNodes.size() << " ";
+			  	cout << "Time: " << currentDateTime();
+			}
+			progress++;
+
+			ListDigraph::Node node = backwardYNodes[i];
+
+			if (not graph.valid(node))
+			{
+				cout << "node not valid" << endl;
+			}
+
+			ListDigraph::OutArcIt out_arc(graph,node);
+			ListDigraph::Node node_successor = graph.target(out_arc);
+
+			ListDigraph::InArcIt in_arc(graph,node);
+			++in_arc;
+			while (in_arc != INVALID)
+			{
+				ListDigraph::InArcIt next_in_arc = in_arc;
+				++next_in_arc;
+
+				ListDigraph::Node node_prime = graph.addNode();
+				length[node_prime] = length[node];
+				seqStart[node_prime] = seqStart[node];
+				
+				graph.changeTarget(in_arc, node_prime);
+				graph.addArc(node_prime, node_successor);
+
+				in_arc = next_in_arc;
+			}
+			//graph.erase(node);
+		}	
+
+		arcsToContract.clear();
+		forwardYNodes.clear();
+		backwardYNodes.clear();	
 	}
 
-	for (auto arc : arcsToContract)
-	{
-		if (progress % 100000 == 0)
-		{
-			cout << "YtoV phase 2, arc : #" << progress << "/" << arcsToContract.size() << " ";
-		  	cout << "Time: " << currentDateTime();
-		}
-		progress++;
 
-		if (not graph.valid(arc))
-		{
-			cout << "arc not valid" << endl;
-		}
-
-		ListDigraph::Node u,v;
-		u = graph.source(arc);
-		v = graph.target(arc);
-		length[u] = length[u] + length[v] - (kmersize - 1);
-
-		//graph.contract(u, v);
-		for (ListDigraph::OutArcIt out_arc(graph,v); out_arc != INVALID;)
-		{
-			ListDigraph::OutArcIt next_out_arc = out_arc;
-			++next_out_arc;
-			graph.changeSource(out_arc,u);
-			out_arc = next_out_arc;
-		}
-		graph.erase(v);
-
-	}
-
+	cout << "Resulting graph has " << countNodes(graph) << " nodes and " << countArcs(graph) << " arcs" << endl;
+	cout << "Graph has " << countStronglyConnectedComponents(graph) << " strongly connected components" << endl;
 	cout << "Applied all YtoV transformations. Reporting the unitigs of the resulting graph." << endl;
 
-	unordered_set<int> processedArcs;
+	// unordered_set<int> processedArcs;
 
-	// first, merging the arcs incident to unary nodes
-	for (ListDigraph::NodeIt node(graph); node != INVALID; ++node)
-	{
-		if ((countInArcs(graph,node) == 1) and (countOutArcs(graph,node) == 1))
-		{
-			ListDigraph::InArcIt in_arc(graph,node);
-			ListDigraph::OutArcIt out_arc(graph,node);
+	// // first, merging the arcs incident to unary nodes
+	// for (ListDigraph::NodeIt node(graph); node != INVALID; ++node)
+	// {
+	// 	if ((countInArcs(graph,node) == 1) and (countOutArcs(graph,node) == 1))
+	// 	{
+	// 		ListDigraph::InArcIt in_arc(graph,node);
+	// 		ListDigraph::OutArcIt out_arc(graph,node);
 
-			contig entry;
-			entry.nodes.push_back(graph.id(graph.source(in_arc)));
-			entry.nodes.push_back(graph.id(node));
-			entry.nodes.push_back(graph.id(graph.target(out_arc)));
+	// 		contig entry;
+	// 		entry.nodes.push_back(graph.id(graph.source(in_arc)));
+	// 		entry.nodes.push_back(graph.id(node));
+	// 		entry.nodes.push_back(graph.id(graph.target(out_arc)));
 
-			YtoV_contigs.push_back(entry);
+	// 		YtoV_contigs.push_back(entry);
 
-			processedArcs.insert(graph.id(in_arc));
-			processedArcs.insert(graph.id(out_arc));
-		}
-	}
+	// 		processedArcs.insert(graph.id(in_arc));
+	// 		processedArcs.insert(graph.id(out_arc));
+	// 	}
+	// }
 
-	for (ListDigraph::ArcIt a(graph); a != INVALID; ++a)
-	{
-		if (processedArcs.count(graph.id(a)) == 0)	
-		{
+	// for (ListDigraph::ArcIt a(graph); a != INVALID; ++a)
+	// {
+	// 	if (processedArcs.count(graph.id(a)) == 0)	
+	// 	{
 			
-			contig entry;
-			entry.nodes.push_back(graph.id(graph.source(a)));
-			entry.nodes.push_back(graph.id(graph.target(a)));
-			YtoV_contigs.push_back(entry);	
-		}
-	}
+	// 		contig entry;
+	// 		entry.nodes.push_back(graph.id(graph.source(a)));
+	// 		entry.nodes.push_back(graph.id(graph.target(a)));
+	// 		YtoV_contigs.push_back(entry);	
+	// 	}
+	// }
 
-	// copying graph back into a StaticDigraph graph_static_temp
-	StaticDigraph graph_static_temp;
-	StaticDigraph::NodeMap<size_t> length_static_temp(graph_static_temp);
-	StaticDigraph::NodeMap<size_t> seqStart_static_temp(graph_static_temp);
+	YtoV_contigs = compute_unitigs_by_traversal(graph);
 
-	DigraphCopy<ListDigraph, StaticDigraph> copy_graph_temp(graph, graph_static_temp);
-	copy_graph_temp.nodeMap(length, length_static_temp);
-	copy_graph_temp.nodeMap(seqStart, seqStart_static_temp);
-	copy_graph_temp.run();
-	// finished copying into graph
+	cout << "Assembled the unitigs of the resulting graph." << endl;
 
-	populate_with_strings(sequence, kmersize, graph_static_temp, seqStart_static_temp, length_static_temp, YtoV_contigs);
+	populate_with_strings_list_digraph(sequence, kmersize, graph, seqStart, length, YtoV_contigs);
 	cout << "----------------------" << endl;
 	cout << "Statistics on YtoV contigs:" << endl;
 	cout << "----------------------" << endl;
@@ -881,8 +1078,7 @@ int main(int argc, char **argv)
 	/*stats*/ fileStats << "non-switching contigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
 
 	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
-	vector<contig> YtoV_contigs;
-	YtoV_contigs = compute_YtoV_contigs_and_auxiliary(graph, length, seqStart, kmersize, sequence, inputFileName, genome_type, seqLength);
+	compute_YtoV_contigs_and_auxiliary(graph, length, seqStart, kmersize, sequence, inputFileName, genome_type, seqLength);
 	cout << "Time: " << currentDateTime();
 	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
 	/*stats*/ fileStats << "YtoV contigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;

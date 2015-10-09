@@ -90,11 +90,18 @@ inline string plus_strings(const string& a, const string& b, size_t kmersize)
 	return ret;
 }
 
-void populate_with_strings(string& sequence, 
+void populate_with_strings(const string& sequence, 
 	size_t kmersize, 
-	StaticDigraph& graph,
-	StaticDigraph::NodeMap<size_t>& seqStart,
-	StaticDigraph::NodeMap<size_t>& length,
+	const StaticDigraph& graph,
+	const StaticDigraph::NodeMap<size_t>& seqStart,
+	const StaticDigraph::NodeMap<size_t>& length,
+	vector<contig>& collection);
+
+void populate_with_strings_list_digraph(const string& sequence, 
+	size_t kmersize, 
+	const ListDigraph& graph,
+	const ListDigraph::NodeMap<size_t>& seqStart,
+	const ListDigraph::NodeMap<size_t>& length,
 	vector<contig>& collection);
 
 void print_collection(vector<contig>& collection, string inputFileName, string suffix);

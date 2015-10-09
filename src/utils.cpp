@@ -19,6 +19,11 @@ void make_upper_case(string& s)
 		else if (s[i] == 'g') s[i] = 'G';
 		else if (s[i] == 't') s[i] = 'T';
 		else if (s[i] == 'n') s[i] = 'N';
+		else if (s[i] == 'A') s[i] = 'A';
+		else if (s[i] == 'C') s[i] = 'C';
+		else if (s[i] == 'G') s[i] = 'G';
+		else if (s[i] == 'T') s[i] = 'T';
+		else s[i] = 'N';
 	}
 }
 
@@ -71,11 +76,11 @@ size_t count_unary_arcs_ld(ListDigraph& graph)
 	return n_unary_arcs;
 }
 
-void populate_with_strings(string& sequence, 
+void populate_with_strings(const string& sequence, 
 	size_t kmersize, 
-	StaticDigraph& graph,
-	StaticDigraph::NodeMap<size_t>& seqStart,
-	StaticDigraph::NodeMap<size_t>& length,
+	const StaticDigraph& graph,
+	const StaticDigraph::NodeMap<size_t>& seqStart,
+	const StaticDigraph::NodeMap<size_t>& length,
 	vector<contig>& collection)
 {
 	for (size_t i = 0; i < collection.size(); i++)
@@ -91,6 +96,25 @@ void populate_with_strings(string& sequence,
 	}
 }
 
+void populate_with_strings_list_digraph(const string& sequence, 
+	size_t kmersize, 
+	const ListDigraph& graph,
+	const ListDigraph::NodeMap<size_t>& seqStart,
+	const ListDigraph::NodeMap<size_t>& length,
+	vector<contig>& collection)
+{
+	for (size_t i = 0; i < collection.size(); i++)
+	{
+		string contig = "";
+		for (list<int>::const_iterator itr = collection[i].nodes.begin(); itr != collection[i].nodes.end(); ++itr)
+		{	
+			ListDigraph::Node node = graph.nodeFromId(*itr);
+			string s = sequence.substr(seqStart[node],length[node]);
+			contig = plus_strings(contig,s,kmersize);
+		}
+		collection[i].str = contig;
+	}
+}
 
 void print_collection(vector<contig>& collection, string inputFileName, string suffix) 
 {
@@ -543,7 +567,7 @@ int load_data(string& sequence,
 				nodeMap("length", length).
 				nodeMap("seqStart", seqStart).
 				run();
-			print_graph_in_dot(graph, inputFileName, kmersize, genome_type);
+			// print_graph_in_dot(graph, inputFileName, kmersize, genome_type);
 
 		} catch (Exception& error) 
 		{ // check if there was any error
@@ -679,7 +703,7 @@ int load_data_from_reads(string& sequence,
 				nodeMap("seqStart", seqStart).
 				attribute("sequence", sequence).
 				run();
-			print_graph_in_dot(graph, inputFileName, kmersize, genome_type);
+			// print_graph_in_dot(graph, inputFileName, kmersize, genome_type);
 
 		} catch (Exception& error) 
 		{ // check if there was any error
