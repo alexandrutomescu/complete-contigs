@@ -176,9 +176,10 @@ vector<contig> compute_non_switching_contigs(const StaticDigraph& graph,
 	return ret;
 }
 
-void compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static, 
-	const StaticDigraph::NodeMap<size_t>& length_static, 
-	const StaticDigraph::NodeMap<size_t>& seqStart_static,
+void compute_YtoV_contigs_and_auxiliary(StaticDigraph& graph_static, 
+	StaticDigraph::NodeMap<size_t>& length_static, 
+	StaticDigraph::NodeMap<size_t>& seqStart_static,
+	StaticDigraph::NodeMap<string>& nodeLabel_static,
 	const size_t kmersize,
 	string& sequence,
 	const string inputFileName,
@@ -194,19 +195,16 @@ void compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static,
 	ListDigraph graph;
 	ListDigraph::NodeMap<size_t> length(graph);
 	ListDigraph::NodeMap<size_t> seqStart(graph);
+	ListDigraph::NodeMap<string> nodeLabel(graph);
 
 	DigraphCopy<StaticDigraph, ListDigraph> copy_graph(graph_static, graph);
 	ListDigraph::NodeMap<StaticDigraph::Node> graph_to_graph_static_node(graph);
 	// copy_graph.nodeCrossRef(graph_to_graph_static_node);
 	copy_graph.nodeMap(length_static, length);
 	copy_graph.nodeMap(seqStart_static, seqStart);
+	copy_graph.nodeMap(nodeLabel_static, nodeLabel);
 	copy_graph.run();
 	// finished copying into graph
-
-	// for (ListDigraph::NodeIt node(graph); node != INVALID; ++node)
-	// {
-	// 	cout << "length[node]=" << length[node] << " seqStart[node]=" << seqStart[node] << endl;
-	// }
 
 	vector<ListDigraph::Node> forwardYNodes, backwardYNodes;
 	vector<ListDigraph::Arc> arcsToContract;
@@ -223,75 +221,10 @@ void compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static,
 		applied_reduction = false;
 
 		///////////////////////////////////
-		// we first try to contract arcs
-		///////////////////////////////////
-		progress = 1;
-		for (ListDigraph::ArcIt a(graph); a != INVALID; ++a)
-		{
-			if (progress % 100000 == 0)
-			{
-				cout << "Finding arcs to contract, arc : #" << progress << "/" << n_arcs << " ";
-			  	cout << "Time: " << currentDateTime();
-			}
-			progress++;
-
-			ListDigraph::Node u,v;
-			u = graph.source(a);
-			v = graph.target(a);
-
-			if ((countOutArcs(graph,u) == 1) and (countInArcs(graph,v) == 1))
-			{
-				// arcsToContract.push_back(a);
-				// applied_reduction = true;
-				break;
-			}
-		}
-		// cout << "Found " << arcsToContract.size() << " arcs to contract" << endl;
-
-		progress = 1;
-		for (auto arc : arcsToContract)
-		{
-			if (progress % 100000 == 0)
-			{
-				cout << "Contracting arcs, arc : #" << progress << "/" << arcsToContract.size() << " ";
-			  	cout << "Time: " << currentDateTime();
-			}
-			progress++;
-
-			if (not graph.valid(arc))
-			{
-				cout << "arc not valid" << endl;
-			}
-
-			ListDigraph::Node u,v;
-			u = graph.source(arc);
-			v = graph.target(arc);
-			length[u] = length[u] + length[v] - (kmersize - 1);
-
-			//graph.contract(u, v);
-			for (ListDigraph::OutArcIt out_arc(graph,v); out_arc != INVALID;)
-			{
-				ListDigraph::OutArcIt next_out_arc = out_arc;
-				++next_out_arc;
-				graph.changeSource(out_arc,u);
-				out_arc = next_out_arc;
-			}
-			graph.erase(v);
-		}
-
-		///////////////////////////////////
 		// now we try the forward Ynodes
 		///////////////////////////////////
-		progress = 1;
 		for (ListDigraph::NodeIt node(graph); node != INVALID; ++node)
 		{
-			if (progress % 100000 == 0)
-			{
-				cout << "Finding forwardYnodes , node: #" << progress << "/" << n_arcs << " ";
-			  	cout << "Time: " << currentDateTime();
-			}
-			progress++;
-
 			// forwardYNodes
 			if ((countInArcs(graph,node) == 1) and (countOutArcs(graph,node) > 1))
 			{
@@ -299,23 +232,15 @@ void compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static,
 				{
 					forwardYNodes.push_back(node);
 					applied_reduction = true;	
-					break;				
+					// break;				
 				}
 			}
 		}
 		// cout << "Found " << forwardYNodes.size() << " forwardYNodes" << endl;
 
 		// we reduce the forward nodes
-		progress = 1;
 		for (int i = 0; i < forwardYNodes.size(); i++)
 		{
-			if (progress % 100000 == 0)
-			{
-				cout << "Reducing forwardYNodes, node: #" << progress << "/" << forwardYNodes.size() << " ";
-			  	cout << "Time: " << currentDateTime();
-			}
-			progress++;
-
 			ListDigraph::Node node = forwardYNodes[i];
 
 			if (not graph.valid(node))
@@ -328,6 +253,7 @@ void compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static,
 
 			ListDigraph::OutArcIt out_arc(graph,node);
 			++out_arc;
+
 			while (out_arc != INVALID)
 			{				
 				ListDigraph::OutArcIt next_out_arc = out_arc;
@@ -336,6 +262,8 @@ void compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static,
 				ListDigraph::Node node_prime = graph.addNode();
 				length[node_prime] = length[node];
 				seqStart[node_prime] = seqStart[node];
+				nodeLabel[node_prime] = nodeLabel[node];
+
 				graph.addArc(node_predecessor, node_prime);
 				graph.changeSource(out_arc, node_prime);
 
@@ -347,16 +275,8 @@ void compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static,
 		///////////////////////////////////
 		// now we try the backward Ynodes
 		///////////////////////////////////
-		progress = 1;
 		for (ListDigraph::NodeIt node(graph); node != INVALID; ++node)
 		{
-			if (progress % 100000 == 0)
-			{
-				cout << "Finding backwardYnodes , node: #" << progress << "/" << n_arcs << " ";
-			  	cout << "Time: " << currentDateTime();
-			}
-			progress++;
-
 			// backwardYNodes
 			if ((countInArcs(graph,node) > 1) and (countOutArcs(graph,node) == 1))
 			{
@@ -364,7 +284,7 @@ void compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static,
 				{
 					backwardYNodes.push_back(node);
 					applied_reduction = true;
-					break;	
+					// break;	
 				}
 			}
 		}
@@ -374,13 +294,6 @@ void compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static,
 		progress = 1;
 		for (int i = 0; i < backwardYNodes.size(); i++)
 		{
-			if (progress % 100000 == 0)
-			{
-				cout << "Reducing backwardYNodes, node: #" << progress << "/" << backwardYNodes.size() << " ";
-			  	cout << "Time: " << currentDateTime();
-			}
-			progress++;
-
 			ListDigraph::Node node = backwardYNodes[i];
 
 			if (not graph.valid(node))
@@ -393,6 +306,7 @@ void compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static,
 
 			ListDigraph::InArcIt in_arc(graph,node);
 			++in_arc;
+
 			while (in_arc != INVALID)
 			{
 				ListDigraph::InArcIt next_in_arc = in_arc;
@@ -401,6 +315,7 @@ void compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static,
 				ListDigraph::Node node_prime = graph.addNode();
 				length[node_prime] = length[node];
 				seqStart[node_prime] = seqStart[node];
+				nodeLabel[node_prime] = nodeLabel[node];
 				
 				graph.changeTarget(in_arc, node_prime);
 				graph.addArc(node_prime, node_successor);
@@ -410,61 +325,134 @@ void compute_YtoV_contigs_and_auxiliary(const StaticDigraph& graph_static,
 			//graph.erase(node);
 		}	
 
+
+		///////////////////////////////////
+		// now we try the contract arcs
+		///////////////////////////////////
+		for (ListDigraph::ArcIt a(graph); a != INVALID; ++a)
+		{
+			if (progress % 100000 == 0)
+			{
+				cout << "Compacting phase, arc : #" << progress << "/" << n_arcs << " ";
+			  	cout << "Time: " << currentDateTime();
+			}
+			progress++;
+
+			ListDigraph::Node u,v;
+			u = graph.source(a);
+			v = graph.target(a);
+
+			if ((countOutArcs(graph,u) == 1) and (countInArcs(graph,v) == 1))
+			// if the arc (u,v) is the 'middle' arc of a unitig, then contract it
+			// if ((countOutArcs(graph,u) == 1) and (countInArcs(graph,u) == 1) and
+			// 	(countOutArcs(graph,v) == 1) and (countInArcs(graph,v) == 1))
+			{
+				arcsToContract.push_back(a);
+				applied_reduction = true;
+			}
+		}
+
+		for (auto arc : arcsToContract)
+		{
+			if (progress % 100000 == 0)
+			{
+				cout << "Compacting phase 2, arc : #" << progress << "/" << arcsToContract.size() << " ";
+			  	cout << "Time: " << currentDateTime();
+			}
+			progress++;
+
+			if (not graph.valid(arc))
+			{
+				cout << "arc not valid" << endl;
+			}
+
+			ListDigraph::Node u,v;
+			u = graph.source(arc);
+			v = graph.target(arc);
+			nodeLabel[u] = plus_strings(nodeLabel[u],nodeLabel[v],kmersize);
+
+			//graph.contract(u, v);
+			for (ListDigraph::OutArcIt out_arc(graph,v); out_arc != INVALID;)
+			{
+				ListDigraph::OutArcIt next_out_arc = out_arc;
+				++next_out_arc;
+				graph.changeSource(out_arc,u);
+				out_arc = next_out_arc;
+			}
+			graph.erase(v);
+
+		}
+
+
 		arcsToContract.clear();
 		forwardYNodes.clear();
 		backwardYNodes.clear();	
 	}
 
-
 	cout << "Resulting graph has " << countNodes(graph) << " nodes and " << countArcs(graph) << " arcs" << endl;
 	cout << "Graph has " << countStronglyConnectedComponents(graph) << " strongly connected components" << endl;
 	cout << "Applied all YtoV transformations. Reporting the unitigs of the resulting graph." << endl;
-
-	// unordered_set<int> processedArcs;
-
-	// // first, merging the arcs incident to unary nodes
-	// for (ListDigraph::NodeIt node(graph); node != INVALID; ++node)
-	// {
-	// 	if ((countInArcs(graph,node) == 1) and (countOutArcs(graph,node) == 1))
-	// 	{
-	// 		ListDigraph::InArcIt in_arc(graph,node);
-	// 		ListDigraph::OutArcIt out_arc(graph,node);
-
-	// 		contig entry;
-	// 		entry.nodes.push_back(graph.id(graph.source(in_arc)));
-	// 		entry.nodes.push_back(graph.id(node));
-	// 		entry.nodes.push_back(graph.id(graph.target(out_arc)));
-
-	// 		YtoV_contigs.push_back(entry);
-
-	// 		processedArcs.insert(graph.id(in_arc));
-	// 		processedArcs.insert(graph.id(out_arc));
-	// 	}
-	// }
-
-	// for (ListDigraph::ArcIt a(graph); a != INVALID; ++a)
-	// {
-	// 	if (processedArcs.count(graph.id(a)) == 0)	
-	// 	{
-			
-	// 		contig entry;
-	// 		entry.nodes.push_back(graph.id(graph.source(a)));
-	// 		entry.nodes.push_back(graph.id(graph.target(a)));
-	// 		YtoV_contigs.push_back(entry);	
-	// 	}
-	// }
 
 	YtoV_contigs = compute_unitigs_by_traversal(graph);
 
 	cout << "Assembled the unitigs of the resulting graph." << endl;
 
-	populate_with_strings_list_digraph(sequence, kmersize, graph, seqStart, length, YtoV_contigs);
+	populate_with_strings_list_digraph(sequence, kmersize, graph, nodeLabel, YtoV_contigs);
 	cout << "----------------------" << endl;
 	cout << "Statistics on YtoV contigs:" << endl;
 	cout << "----------------------" << endl;
 	compute_statistics(YtoV_contigs, seqLength);
 	print_collection(YtoV_contigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".YtoV-contigs");
 
+
+	///////////////////////////////////
+	// we now try to contract arcs
+	///////////////////////////////////
+
+
+	// cout << "Compacting the graph" << endl;
+	// applied_reduction = true;
+	// while (applied_reduction)
+	// {
+	// 	applied_reduction = false;
+	// 	for (ListDigraph::ArcIt arc(graph); arc != INVALID; ++arc)
+	// 	{
+	// 		ListDigraph::Node u,v,w;
+	// 		u = graph.source(arc);
+	// 		v = graph.target(arc);
+	// 		ListDigraph::OutArcIt out_arc_v(graph, v);
+	// 		w = graph.target(out_arc_v);
+
+	// 		// if ((countOutArcs(graph,u) == 1) and (countInArcs(graph,v) == 1))
+	// 		if ( (u != v) and (v != w) and (u != w) and
+	// 			(countOutArcs(graph,u) == 1) and (countInArcs(graph,u) == 1) and
+	// 			(countOutArcs(graph,v) == 1) and (countInArcs(graph,v) == 1))
+	// 		{
+
+	// 			length[u] = length[u] + length[v] - (kmersize - 1);
+	// 			graph.addArc(u,w);
+	// 			graph.erase(v);				
+	// 			applied_reduction = true;
+	// 			break;
+	// 		}
+	// 	}
+	// }
+
+	// cout << "Resulting graph has " << countNodes(graph) << " nodes and " << countArcs(graph) << " arcs" << endl;
+	// cout << "Graph has " << countStronglyConnectedComponents(graph) << " strongly connected components" << endl;
+
+	// saving graph to graph_static
+	ListDigraph::NodeMap<StaticDigraph::Node> nodeRef(graph);
+	ListDigraph::ArcMap<StaticDigraph::Arc> arcRef(graph);
+	graph_static.clear();
+	graph_static.build(graph, nodeRef, arcRef);
+	// copy maps
+	for (ListDigraph::NodeIt node(graph); node != INVALID; ++node)
+	{
+		length_static[nodeRef[node]] = length[node];
+		seqStart_static[nodeRef[node]] = seqStart[node];
+		nodeLabel_static[nodeRef[node]] = nodeLabel[node];
+	}
 }
 
 
@@ -922,6 +910,7 @@ int main(int argc, char **argv)
 	StaticDigraph graph;
 	StaticDigraph::NodeMap<size_t> length(graph);
 	StaticDigraph::NodeMap<size_t> seqStart(graph);
+	StaticDigraph::NodeMap<string> nodeLabel(graph);
 	set_of_pairs safe_pairs(1 << 17,hash_pair);
 
 	string sequence;
@@ -1017,7 +1006,7 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		if (EXIT_SUCCESS != load_data(sequence, seqLength, inputFileName, kmersize, circular_genome, do_not_contract_arcs, graph, length, seqStart, safe_pairs))
+		if (EXIT_SUCCESS != load_data(sequence, seqLength, inputFileName, kmersize, circular_genome, do_not_contract_arcs, graph, length, seqStart, nodeLabel, safe_pairs))
 		{
 			return EXIT_FAILURE;
 		}		
@@ -1063,26 +1052,26 @@ int main(int argc, char **argv)
 	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
 	/*stats*/ fileStats << "unitigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
 
+	// /*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
+	// vector<contig> non_switching_contigs;
+	// non_switching_contigs = compute_non_switching_contigs(graph, length, seqStart, kmersize, sequence, inputFileName);
+	// populate_with_strings(sequence, kmersize, graph, seqStart, length, non_switching_contigs);
+	// cout << "----------------------" << endl;
+	// cout << "Statistics on non-switching contigs:" << endl;
+	// cout << "----------------------" << endl;
+	// compute_statistics(non_switching_contigs, seqLength);
+	// print_collection(non_switching_contigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".non-switching-contigs");
+	// cout << "Time: " << currentDateTime();
+	// /*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
+	// /*stats*/ fileStats << "non-switching contigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
+
+
 
 	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
-	vector<contig> non_switching_contigs;
-	non_switching_contigs = compute_non_switching_contigs(graph, length, seqStart, kmersize, sequence, inputFileName);
-	populate_with_strings(sequence, kmersize, graph, seqStart, length, non_switching_contigs);
-	cout << "----------------------" << endl;
-	cout << "Statistics on non-switching contigs:" << endl;
-	cout << "----------------------" << endl;
-	compute_statistics(non_switching_contigs, seqLength);
-	print_collection(non_switching_contigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".non-switching-contigs");
-	cout << "Time: " << currentDateTime();
-	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
-	/*stats*/ fileStats << "non-switching contigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
-
-	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
-	compute_YtoV_contigs_and_auxiliary(graph, length, seqStart, kmersize, sequence, inputFileName, genome_type, seqLength);
+	compute_YtoV_contigs_and_auxiliary(graph, length, seqStart, nodeLabel, kmersize, sequence, inputFileName, genome_type, seqLength);
 	cout << "Time: " << currentDateTime();
 	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
 	/*stats*/ fileStats << "YtoV contigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
-
 
 	// vector<contig> omnitigs_2;
 	// omnitigs_2 = compute_omnitigs_2(graph, length, seqStart, safe_pairs, kmersize, sequence, inputFileName);
@@ -1116,7 +1105,8 @@ int main(int argc, char **argv)
 		}
 		
 		// remove_non_maximal_contigs(omnitigs); 
-		populate_with_strings(sequence, kmersize, graph, seqStart, length, omnitigs);
+		//populate_with_strings(sequence, kmersize, graph, seqStart, length, omnitigs);
+		populate_with_strings_from_node_labels(sequence, kmersize, graph, nodeLabel, omnitigs);
 		cout << "----------------------" << endl;
 		cout << "Statistics on omnitigs:" << endl;
 		cout << "----------------------" << endl;

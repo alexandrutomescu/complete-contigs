@@ -97,11 +97,16 @@ void populate_with_strings(const string& sequence,
 	const StaticDigraph::NodeMap<size_t>& length,
 	vector<contig>& collection);
 
+void populate_with_strings_from_node_labels(const string& sequence, 
+	size_t kmersize, 
+	const StaticDigraph& graph,
+	const StaticDigraph::NodeMap<string>& nodeLabel,
+	vector<contig>& collection);
+
 void populate_with_strings_list_digraph(const string& sequence, 
 	size_t kmersize, 
 	const ListDigraph& graph,
-	const ListDigraph::NodeMap<size_t>& seqStart,
-	const ListDigraph::NodeMap<size_t>& length,
+	const ListDigraph::NodeMap<string>& nodeLabel,
 	vector<contig>& collection);
 
 void print_collection(vector<contig>& collection, string inputFileName, string suffix);
@@ -132,6 +137,7 @@ int load_data(string& sequence,
 	StaticDigraph& graph,
 	StaticDigraph::NodeMap<size_t>& length,
 	StaticDigraph::NodeMap<size_t>& seqStart,
+	StaticDigraph::NodeMap<string>& nodeLabel,
 	set_of_pairs& safe_pairs
 );
 

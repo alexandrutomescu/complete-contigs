@@ -96,11 +96,29 @@ void populate_with_strings(const string& sequence,
 	}
 }
 
+void populate_with_strings_from_node_labels(const string& sequence, 
+	size_t kmersize, 
+	const StaticDigraph& graph,
+	const StaticDigraph::NodeMap<string>& nodeLabel,
+	vector<contig>& collection)
+{
+	for (size_t i = 0; i < collection.size(); i++)
+	{
+		string contig = "";
+		for (list<int>::const_iterator itr = collection[i].nodes.begin(); itr != collection[i].nodes.end(); ++itr)
+		{	
+			StaticDigraph::Node node = graph.node(*itr);
+			string s = nodeLabel[node]; //sequence.substr(seqStart[node],length[node]);
+			contig = plus_strings(contig,s,kmersize);
+		}
+		collection[i].str = contig;
+	}
+}
+
 void populate_with_strings_list_digraph(const string& sequence, 
 	size_t kmersize, 
 	const ListDigraph& graph,
-	const ListDigraph::NodeMap<size_t>& seqStart,
-	const ListDigraph::NodeMap<size_t>& length,
+	const ListDigraph::NodeMap<string>& nodeLabel,
 	vector<contig>& collection)
 {
 	for (size_t i = 0; i < collection.size(); i++)
@@ -109,7 +127,7 @@ void populate_with_strings_list_digraph(const string& sequence,
 		for (list<int>::const_iterator itr = collection[i].nodes.begin(); itr != collection[i].nodes.end(); ++itr)
 		{	
 			ListDigraph::Node node = graph.nodeFromId(*itr);
-			string s = sequence.substr(seqStart[node],length[node]);
+			string s = nodeLabel[node]; //sequence.substr(seqStart[node],length[node]);
 			contig = plus_strings(contig,s,kmersize);
 		}
 		collection[i].str = contig;
@@ -501,6 +519,7 @@ int load_data(string& sequence,
 	StaticDigraph& graph,
 	StaticDigraph::NodeMap<size_t>& length,
 	StaticDigraph::NodeMap<size_t>& seqStart,
+	StaticDigraph::NodeMap<string>& nodeLabel,
 	set_of_pairs& safe_pairs
 )
 {
@@ -599,6 +618,12 @@ int load_data(string& sequence,
 				length[nodeRef[node]] = temporary_length[node];
 				seqStart[nodeRef[node]] = temporary_seqStart[node];
 			}
+			// attach the node labels
+			for (StaticDigraph::NodeIt node(graph); node != INVALID; ++node)
+			{
+				nodeLabel[node] = sequence.substr(seqStart[node],length[node]);
+			}
+
 
 		}
 		catch (Exception& error) 
