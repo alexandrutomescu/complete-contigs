@@ -176,7 +176,7 @@ vector<contig> compute_non_switching_contigs(const StaticDigraph& graph,
 	return ret;
 }
 
-void compute_YtoV_contigs_and_auxiliary(StaticDigraph& graph_static, 
+vector<contig> compute_YtoV_contigs_and_reduce(StaticDigraph& graph_static, 
 	StaticDigraph::NodeMap<size_t>& length_static, 
 	StaticDigraph::NodeMap<size_t>& seqStart_static,
 	StaticDigraph::NodeMap<string>& nodeLabel_static,
@@ -393,54 +393,6 @@ void compute_YtoV_contigs_and_auxiliary(StaticDigraph& graph_static,
 	cout << "Graph has " << countStronglyConnectedComponents(graph) << " strongly connected components" << endl;
 	cout << "Applied all YtoV transformations. Reporting the unitigs of the resulting graph." << endl;
 
-	YtoV_contigs = compute_unitigs_by_traversal(graph);
-
-	cout << "Assembled the unitigs of the resulting graph." << endl;
-
-	populate_with_strings_list_digraph(sequence, kmersize, graph, nodeLabel, YtoV_contigs);
-	cout << "----------------------" << endl;
-	cout << "Statistics on YtoV contigs:" << endl;
-	cout << "----------------------" << endl;
-	compute_statistics(YtoV_contigs, seqLength);
-	print_collection(YtoV_contigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".YtoV-contigs");
-
-
-	///////////////////////////////////
-	// we now try to contract arcs
-	///////////////////////////////////
-
-
-	// cout << "Compacting the graph" << endl;
-	// applied_reduction = true;
-	// while (applied_reduction)
-	// {
-	// 	applied_reduction = false;
-	// 	for (ListDigraph::ArcIt arc(graph); arc != INVALID; ++arc)
-	// 	{
-	// 		ListDigraph::Node u,v,w;
-	// 		u = graph.source(arc);
-	// 		v = graph.target(arc);
-	// 		ListDigraph::OutArcIt out_arc_v(graph, v);
-	// 		w = graph.target(out_arc_v);
-
-	// 		// if ((countOutArcs(graph,u) == 1) and (countInArcs(graph,v) == 1))
-	// 		if ( (u != v) and (v != w) and (u != w) and
-	// 			(countOutArcs(graph,u) == 1) and (countInArcs(graph,u) == 1) and
-	// 			(countOutArcs(graph,v) == 1) and (countInArcs(graph,v) == 1))
-	// 		{
-
-	// 			length[u] = length[u] + length[v] - (kmersize - 1);
-	// 			graph.addArc(u,w);
-	// 			graph.erase(v);				
-	// 			applied_reduction = true;
-	// 			break;
-	// 		}
-	// 	}
-	// }
-
-	// cout << "Resulting graph has " << countNodes(graph) << " nodes and " << countArcs(graph) << " arcs" << endl;
-	// cout << "Graph has " << countStronglyConnectedComponents(graph) << " strongly connected components" << endl;
-
 	// saving graph to graph_static
 	ListDigraph::NodeMap<StaticDigraph::Node> nodeRef(graph);
 	ListDigraph::ArcMap<StaticDigraph::Arc> arcRef(graph);
@@ -453,6 +405,16 @@ void compute_YtoV_contigs_and_auxiliary(StaticDigraph& graph_static,
 		seqStart_static[nodeRef[node]] = seqStart[node];
 		nodeLabel_static[nodeRef[node]] = nodeLabel[node];
 	}
+
+	YtoV_contigs = compute_unitigs(graph_static, 
+		length_static, 
+		seqStart_static, 
+		kmersize,
+		sequence,
+		inputFileName);
+
+	return YtoV_contigs;
+
 }
 
 
@@ -1065,10 +1027,16 @@ int main(int argc, char **argv)
 	// /*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
 	// /*stats*/ fileStats << "non-switching contigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
 
-
-
 	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
-	compute_YtoV_contigs_and_auxiliary(graph, length, seqStart, nodeLabel, kmersize, sequence, inputFileName, genome_type, seqLength);
+	cout << "Time: " << currentDateTime();
+	vector<contig> YtoV_contigs;
+	YtoV_contigs = compute_YtoV_contigs_and_reduce(graph, length, seqStart, nodeLabel, kmersize, sequence, inputFileName, genome_type, seqLength);
+	populate_with_strings_from_node_labels(sequence, kmersize, graph, nodeLabel, YtoV_contigs);
+	cout << "----------------------" << endl;
+	cout << "Statistics on YtoV contigs:" << endl;
+	cout << "----------------------" << endl;
+	compute_statistics(YtoV_contigs, seqLength);
+	print_collection(YtoV_contigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".YtoV-contigs");
 	cout << "Time: " << currentDateTime();
 	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
 	/*stats*/ fileStats << "YtoV contigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
