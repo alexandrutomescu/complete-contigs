@@ -911,8 +911,8 @@ int main(int argc, char **argv)
 	parser.add_option("-i", "--input") .type("string") .dest("i") .set_default("") .help("input file (.fasta/.fa/.fastq)");
 	parser.add_option("-k", "--kmersize") .type("int") .dest("k") .action("store") .set_default(31) .help("kmer size (default: %default)");
 	parser.add_option("-a", "--abundance") .type("int") .dest("a") .action("store") .set_default(1) .help("minimum abundance (default: %default)");
-	parser.add_option("-t", "--threads") .type("int") .dest("t") .action("store") .set_default(8) .help("number of threads, in [1..16] (default: %default)");
-	parser.add_option("-g", "--genome-type") .action("store") .dest("g") .type("string") .set_default("linear") .help("genome type: linear|circular (default: %default)");
+	parser.add_option("-t", "--threads") .type("int") .dest("t") .action("store") .set_default(1) .help("number of threads, in [1..16] (default: %default)");
+	parser.add_option("-g", "--genome-type") .action("store") .dest("g") .type("string") .set_default("circular") .help("genome type: linear|circular (default: %default)");
 	parser.add_option("-b", "--build-only") .action("store_true") .dest("build_only") .help("build the de bruijn graph and then exit");
 	parser.add_option("-c", "--nocontract") .action("store_true") .set_default(false) .dest("nocontract") .help("do not contract arcs");
 	parser.add_option("-x", "--noomnitigs") .action("store_true") .set_default(false) .dest("noomnitigs") .help("do not compute omnitigs");

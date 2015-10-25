@@ -1,5 +1,5 @@
 # Complete-contigs
-An assembler of unitigs, Y-to-V contigs and omnitigs
+An assembler of unitigs, Y-to-V contigs and omnitigs.
 
 # Installation
 
@@ -26,16 +26,17 @@ Options:
 	-h, --help          show this help message and exit
 	--version           show program's version number and exit
 	-i STRING, --input=STRING
-						input file, without extension (default assumed extension .fa)
+						input .fa file with the single genome sequence
+	-g STRING, --genome-type=STRING 
+						genome type: linear|circular (default: circular)
 	-k INT, --kmersize=INT
 						kmer size (default: 31)
 	-a INT, --abundance=INT
-						minimum abundance (default: 1)
+						minimum abundance for a k-mer to be present 
+						in the de Bruijn graph (default: 1)
+	-b, --build-only    build the de Bruijn graph and then exit
 	-t INT, --threads=INT
     					number of threads, in [1..16]  (default: 1)
-	-g STRING, --genome-type=STRING
-						genome type: linear|circular (default: linear)
-	-b, --build-only    build the de bruijn graph and then exit
 
 # Removing non-maximal omnitigs
 
