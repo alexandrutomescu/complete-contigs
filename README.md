@@ -1,7 +1,7 @@
 # Complete-contigs
 An assembler of unitigs, Y-to-V contigs and omnitigs.
 
-# Installation
+# 1. Installation
 
 In *src directory*, run
 
@@ -13,7 +13,7 @@ If you want to install the program for removing non-maximal omnitigs, In *src di
 
 	make maximality
 
-# Usage
+# 2. Usage
 
 	complete-contigs OPTIONS
 
@@ -38,7 +38,7 @@ Options:
 	-t INT, --threads=INT
     					number of threads, in [1..16]  (default: 1)
 
-# Removing non-maximal omnitigs
+# 3. Removing non-maximal omnitigs
 
 The outputted unitigs and Y-to-V contigs are maximal, but omnitigs are not necessarily. To remove non-maximal omnitigs, run for example
 	
