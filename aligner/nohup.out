@@ -1,0 +1,19 @@
+../chr21/chr21.fa
+circular_genome: 0
+Sequences:       2
+Original size:   45.9003 MB
+Block size:      32 bytes
+Sample rate:     32
+
+RLCSA:           23.1833 MB
+  BWT only:      18.8199 MB
+SA samples:      9.74165 MB
+Total size:      32.925 MB
+
+Input file contains 205157 reads.
+Time for loading the index and the reads: 0.18sec
+genomeLength: 48129895
+Starting to align the reads
+../e_
+circular_genome: 0
+RLCSA: Error opening Psi array file!
