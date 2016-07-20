@@ -878,6 +878,7 @@ int main(int argc, char **argv)
 	string sequence;
 	size_t seqLength;
 	size_t kmersize;
+        string inputFileName;
     string genome_type = "linear";
     bool circular_genome = false;
 	bool build_only = false;
@@ -918,8 +919,8 @@ int main(int argc, char **argv)
 
 	optparse::Values& options = parser.parse_args(argc, argv);
 
+        inputFileName = (string) options.get("i");
         {
-	  string inputFileName = (string) options.get("i");
           string ft = inputFileName.substr(inputFileName.find_last_of(".") + 1);
           input_from_reads = bool(ft == "fastq" || ft == "FASTQ" || ft == "fq" || ft == "FQ");
         }
