@@ -878,7 +878,7 @@ int main(int argc, char **argv)
 	string sequence;
 	size_t seqLength;
 	size_t kmersize;
-        string inputFileName;
+	string inputFileName;
     string genome_type = "linear";
     bool circular_genome = false;
 	bool build_only = false;
