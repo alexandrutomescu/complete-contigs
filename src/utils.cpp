@@ -595,7 +595,9 @@ int load_data(string& sequence,
 		}
 		
 	}
-	else
+	// else
+	// THERE IS SOME BUG WHEN NOT LOADING THE GRAPH FROM FILE
+	// SO WE ALWAYS LOAD IT FROM FILE
 	{
 		try 
 		{

@@ -885,6 +885,7 @@ int main(int argc, char **argv)
 	bool input_from_reads = false;
 	bool do_not_contract_arcs;
 	bool do_not_compute_omnitigs;
+	bool print_graph_in_dot_format;
 	int abundance = 1;
 	N_THREADS = 1;
 	struct timespec start_clock, finish_clock;
@@ -914,8 +915,10 @@ int main(int argc, char **argv)
 	parser.add_option("-t", "--threads") .type("int") .dest("t") .action("store") .set_default(1) .help("number of threads, in [1..16] (default: %default)");
 	parser.add_option("-g", "--genome-type") .action("store") .dest("g") .type("string") .set_default("circular") .help("genome type: linear|circular (default: %default)");
 	parser.add_option("-b", "--build-only") .action("store_true") .dest("build_only") .help("build the de bruijn graph and then exit");
-	parser.add_option("-c", "--nocontract") .action("store_true") .set_default(false) .dest("nocontract") .help("do not contract arcs");
+	parser.add_option("-d", "--printdot") .action("store_true") .set_default(false) .dest("printdot") .help("print the graph in dot format");
 	parser.add_option("-x", "--noomnitigs") .action("store_true") .set_default(false) .dest("noomnitigs") .help("do not compute omnitigs");
+	parser.add_option("-c", "--nocontract") .action("store_true") .set_default(false) .dest("nocontract") .help("do not contract arcs. WARNING: option used only for debugging; activating this option make the unitg algorithm report less and shorter unitigs");
+
 
 	optparse::Values& options = parser.parse_args(argc, argv);
 
@@ -928,7 +931,9 @@ int main(int argc, char **argv)
 	N_THREADS = (int) options.get("t");
 	build_only = (options.get("build_only") ? true : false);
 	do_not_contract_arcs = (options.get("nocontract") ? true : false);
+	cout << do_not_contract_arcs << endl;
 	do_not_compute_omnitigs = (options.get("noomnitigs") ? true : false);
+ 	print_graph_in_dot_format = (options.get("noomnitigs") ? true : false);
 	genome_type = (string) options.get("g");
 
 	if (inputFileName == "")
@@ -961,6 +966,7 @@ int main(int argc, char **argv)
 
 	if (input_from_reads)
 	{
+		cout << "WARNING: input from reads is experimental and most likely will have bugs" << endl;
 		if (EXIT_SUCCESS != load_data_from_reads(sequence, seqLength, inputFileName, kmersize, circular_genome, do_not_contract_arcs, abundance, graph, length, seqStart, safe_pairs))
 		{
 			return EXIT_FAILURE;
@@ -971,9 +977,12 @@ int main(int argc, char **argv)
 		if (EXIT_SUCCESS != load_data(sequence, seqLength, inputFileName, kmersize, circular_genome, do_not_contract_arcs, graph, length, seqStart, nodeLabel, safe_pairs))
 		{
 			return EXIT_FAILURE;
-		}		
+		}
 	}
-
+	if (print_graph_in_dot_format)
+	{
+		print_graph_in_dot(graph, inputFileName, kmersize, genome_type);	
+	}
 
 	/*stats*/ ofstream fileStats;
 	/*stats*/ fileStats.open(inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type + ".stats.csv");
