@@ -922,9 +922,11 @@ int main(int argc, char **argv)
 
 	optparse::Values& options = parser.parse_args(argc, argv);
 
-	inputFileName = (string) options.get("i");
-	input_from_reads = (inputFileName.substr(inputFileName.find_last_of(".") + 1) == "fastq") ? true : false;
-	input_from_reads = (inputFileName.substr(inputFileName.find_last_of(".") + 1) == "FASTQ") ? true : false;
+        inputFileName = (string) options.get("i");
+        {
+          string ft = inputFileName.substr(inputFileName.find_last_of(".") + 1);
+          input_from_reads = bool(ft == "fastq" || ft == "FASTQ" || ft == "fq" || ft == "FQ");
+        }
 
 	kmersize = (size_t) options.get("k");
 	abundance = (int) options.get("a");
