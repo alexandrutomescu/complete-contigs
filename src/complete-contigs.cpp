@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "omnitigs-nm.h"
 
 using namespace std;
 using namespace lemon;
