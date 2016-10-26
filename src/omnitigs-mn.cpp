@@ -11,14 +11,7 @@ class OmnitigNM {
 	StaticDigraph::ArcMap<bool> computation_started;
 	StaticDigraph::ArcMap<Path<StaticDigraph>> omnitig_ending_with;
 	vector<int> strong_branches;
-
-	struct BranchInfo {
-		StaticDigraph::ArcMap<bool> *map;
-		FilterArcs<StaticDigraph> *subgraph;
-		Dfs<FilterArcs<StaticDigraph>> *visit;
-	};
-
-	unordered_map<int, BranchInfo> branch_info;
+	int started_count = 0;
 
 public:
 	OmnitigNM(StaticDigraph& G) :
@@ -39,10 +32,6 @@ public:
 		compute_branches();
 		compute_strong_branches();
 		cout << " done." << endl;
-
-		cout << "Computing branch visits..." << endl;
-		compute_branch_visits();
-		cout << "Computing branch visits... done." << endl;
 
 		return compute_all_omnitigs();
 	}
@@ -85,41 +74,6 @@ private:
 		}
 	}
 
-	void compute_branch_visits() {
-		auto& G = graph;
-
-		int N = strong_branches.size();
-
-		// TODO: parallelize the 'visit.run' call in this for cycle
-		for (int i = 0; i < N; i++) {
-			if(i % 1000 == 0) {
-				cout << "Strong branch #" << i << "/" << N;
-				cout << " Time: " << currentDateTime();
-			}
-
-			auto e = G.arc(strong_branches[i]);
-
-			auto& info = branch_info[G.id(e)];
-
-			// FIXME: free in the destructor
-
-			info.map = new StaticDigraph::ArcMap<bool>(G, true);
-			info.subgraph = new FilterArcs<StaticDigraph>(G, *info.map);
-
-			auto& Ge = *info.subgraph;
-			Ge.disable(e);
-
-			info.visit = new Dfs<FilterArcs<StaticDigraph>>(Ge);
-
-			auto& visit = *info.visit;
-
-			visit.run(G.source(e));
-		}
-
-		cout << "compute_branch_visits finished. ";
-		cout << " Time: " << currentDateTime();
-	}
-
 	void compute_strong_branches() {
 		auto& G = graph;
 		for (StaticDigraph::ArcIt e(G); e != INVALID; ++e) {
@@ -128,7 +82,8 @@ private:
 			}
 		}
 	}
-Path<StaticDigraph> longest_suffix(
+
+	Path<StaticDigraph> longest_suffix(
 			Path<StaticDigraph> const& w,
 			StaticDigraph::Arc const& e,
 			Dfs<FilterArcs<StaticDigraph>>& visit) {
@@ -179,8 +134,20 @@ Path<StaticDigraph> longest_suffix(
 
 		computation_started[e] = true;
 
-		auto& info = branch_info.at(G.id(e));
-		auto& visit = *info.visit;
+		computation_started[e] = true;
+		if(++started_count % 1000 == 0) {
+			cout << "Strong branch #" << started_count << "/" << strong_branches.size();
+			cout << " Time: " << currentDateTime();
+		}
+
+		StaticDigraph::ArcMap<bool> Ge_map(G, true);
+		FilterArcs<StaticDigraph> Ge(G, Ge_map);
+
+		Ge.disable(e);
+
+		Dfs<FilterArcs<StaticDigraph>> visit(Ge);
+
+		visit.run(G.source(e));
 
 		// find any last edge g which closes a path
 		StaticDigraph::InArcIt g(G, G.source(e));
@@ -271,12 +238,10 @@ Path<StaticDigraph> longest_suffix(
 		return ret;
 	}
 
-	};
+};
 
 vector<contig> compute_omnitigs_nm(StaticDigraph& G)
 {
-	OmnitigNM info(G);
-
-	return info.run();
+	return OmnitigNM(G).run();
 }
 
