@@ -5,7 +5,7 @@ OUT_EXE_ASSEMBLER = complete-contigs
 OUT_EXE_MAXIMALITY = maximality
 PATH_TO_LEMON = ./lemon_binaries_linux/include/
 
-CPPFLAGS_ASSEMBLER = -O3 -fopenmp -std=c++0x -I $(PATH_TO_LEMON)
+CPPFLAGS_ASSEMBLER = -O3 -DNDEBUG -fopenmp -std=c++0x -I $(PATH_TO_LEMON)
 
 CPPFLAGS_MAXIMALITY = -O3 -fopenmp -std=c++0x -DMASSIVE_DATA_RLCSA
 
