@@ -12,6 +12,7 @@ class OmnitigNM {
 	StaticDigraph::ArcMap<Path<StaticDigraph>> omnitig_ending_with;
 	vector<int> strong_branches;
 	int started_count = 0;
+	int optimized_visits = 0;
 
 public:
 	OmnitigNM(StaticDigraph& G) :
@@ -43,9 +44,9 @@ private:
 		StaticDigraph::NodeIt u(G);
 		ReverseDigraph<StaticDigraph> GR(G);
 
-		Dfs<StaticDigraph> visit(G);
+		Bfs<StaticDigraph> visit(G);
 		visit.run(u);
-		Dfs<ReverseDigraph<StaticDigraph>> rvisit(GR);
+		Bfs<ReverseDigraph<StaticDigraph>> rvisit(GR);
 		rvisit.run(u);
 
 		for (StaticDigraph::NodeIt u(G); u != INVALID; ++u) {
@@ -83,10 +84,11 @@ private:
 		}
 	}
 
+	template <class Visit>
 	Path<StaticDigraph> longest_suffix(
 			Path<StaticDigraph> const& w,
 			StaticDigraph::Arc const& e,
-			Dfs<FilterArcs<StaticDigraph>>& visit) {
+			Visit& visit) {
 		auto& G = graph;
 
 		assert(checkPath(G, w));
@@ -144,23 +146,31 @@ private:
 
 		Ge.disable(e);
 
-		Dfs<FilterArcs<StaticDigraph>> visit(Ge);
+		Bfs<FilterArcs<StaticDigraph>> visit(Ge);
 		visit.init();
 		visit.addSource(G.source(e));
 
-		// make a closed path
-		FilterArcs<StaticDigraph>::ArcMap<bool> target(Ge, false);
+		// Optimization: visit at most two in-neighbors of s(e)
+		FilterArcs<StaticDigraph>::NodeMap<bool> target(Ge, false);
 		for(StaticDigraph::InArcIt g(G, G.source(e)); g != INVALID; ++g) {
-			target[g] = true;
+			target[G.source(g)] = true;
 		}
-		auto g = visit.start(target);
+
+		visit.start(target);
+		if(visit.start(target) != INVALID) {
+			optimized_visits++;
+			if(optimized_visits % 1000 == 0) {
+				cout << "Optimized visits: " << optimized_visits << endl;
+			}
+		}
+
+		// make a closed path
+		StaticDigraph::InArcIt g(G, G.source(e));
+		for(; g != INVALID; ++g) {
+			if(visit.reached(G.source(g))) break;
+		}
 		assert(g != INVALID);
 
-		// Optimization: if we reach another arc g', we can stop the visit
-		target[g] = false;
-		visit.start(target);
-
-		StaticDigraph::Arc f;
 		Path<StaticDigraph> e1p(visit.path(G.source(g)));
 		e1p.addBack(g);
 
@@ -172,6 +182,7 @@ private:
 		// first edge of e1p is e1 != e
 		assert(e1p.front() != e);
 
+		StaticDigraph::Arc f;
 		Path<StaticDigraph> q;
 		for(int i = e1p.length()-1; i >= 0; i--) {
 			StaticDigraph::Arc fi = e1p.nth(i);
