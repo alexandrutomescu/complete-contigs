@@ -1,0 +1,5 @@
+*.o
+*.a
+/bin/
+/src/complete-contigs
+/src/maximality
