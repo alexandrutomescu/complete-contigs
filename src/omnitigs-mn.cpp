@@ -86,30 +86,24 @@ private:
 	Path<StaticDigraph> longest_suffix(
 			Path<StaticDigraph> const& w,
 			StaticDigraph::Arc const& e,
-			FilterArcs<StaticDigraph>::NodeMap<bool>& target,
-			Bfs<FilterArcs<StaticDigraph>>& visit) {
+			Dfs<FilterArcs<StaticDigraph>>& visit) {
 		auto& G = graph;
 
 		assert(checkPath(G, w));
 		assert(pathTarget(G, w) == G.source(e));
 		assert(is_strong_bridge[e]);
 
-		int i;
-		for(i = w.length()-1; i >= 0; i--) {
+		int start = 0;
+		for(int i = w.length()-1; i >= 0; i--) {
 			auto f = w.nth(i);
 			for(StaticDigraph::InArcIt f1(G, G.target(f)); f1 != INVALID; ++f1) {
 				if(f1 == f || f1 == e) continue;
-				auto u = G.source(f1);
-				if(visit.reached(u)) {
-					goto stop;
+				if(visit.reached(G.source(f1))) {
+					start = i+1;
+					break;
 				}
-				target[u] = true;
 			}
-
-			if(visit.start(target) != INVALID) goto stop;
 		}
-		stop:
-		int start = i+1;
 
 		Path<StaticDigraph> ret;
 
@@ -140,7 +134,6 @@ private:
 
 		computation_started[e] = true;
 
-		computation_started[e] = true;
 		if(++started_count % 1000 == 0) {
 			cout << "Strong branch #" << started_count << "/" << strong_branches.size();
 			cout << " Time: " << currentDateTime();
@@ -151,23 +144,21 @@ private:
 
 		Ge.disable(e);
 
-		Bfs<FilterArcs<StaticDigraph>> visit(Ge);
+		Dfs<FilterArcs<StaticDigraph>> visit(Ge);
 		visit.init();
 		visit.addSource(G.source(e));
 
 		// make a closed path
-		FilterArcs<StaticDigraph>::NodeMap<bool> target(Ge, false);
-		unordered_map<int, StaticDigraph::Arc> prec_map;
+		FilterArcs<StaticDigraph>::ArcMap<bool> target(Ge, false);
 		for(StaticDigraph::InArcIt g(G, G.source(e)); g != INVALID; ++g) {
-			StaticDigraph::Node u = G.source(g);
-			prec_map[G.id(u)] = (StaticDigraph::Arc) g;
-			target[u] = true;
+			target[g] = true;
 		}
-		auto u = visit.start(target);
-		assert(u != INVALID);
-
-		auto g = prec_map.at(G.id(u));
+		auto g = visit.start(target);
 		assert(g != INVALID);
+
+		// Optimization: if we reach another arc g', we can stop the visit
+		target[g] = false;
+		visit.start(target);
 
 		StaticDigraph::Arc f;
 		Path<StaticDigraph> e1p(visit.path(G.source(g)));
@@ -198,7 +189,7 @@ private:
 		fq.addFront(f);
 		assert(checkPath(G, fq));
 
-		auto w1 = longest_suffix(fq, e, target, visit);
+		auto w1 = longest_suffix(fq, e, visit);
 
 		assert(checkPath(G, w1));
 		assert(w1.back() == e);
@@ -217,7 +208,7 @@ private:
 			}
 			assert(checkPath(G, w2q));
 
-			res = longest_suffix(w2q, e, target, visit);
+			res = longest_suffix(w2q, e, visit);
 		}
 
 		assert(checkPath(G, res));
