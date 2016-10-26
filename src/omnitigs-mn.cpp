@@ -94,19 +94,22 @@ private:
 		assert(pathTarget(G, w) == G.source(e));
 		assert(is_strong_bridge[e]);
 
-		int start = 0;
-		for(int i = w.length()-1; i >= 0; i--) {
+		int i;
+		for(i = w.length()-1; i >= 0; i--) {
 			auto f = w.nth(i);
 			for(StaticDigraph::InArcIt f1(G, G.target(f)); f1 != INVALID; ++f1) {
 				if(f1 == f || f1 == e) continue;
 				auto u = G.source(f1);
+				if(visit.reached(u)) {
+					goto stop;
+				}
 				target[u] = true;
 			}
-			if(visit.start(target) != INVALID) {
-				start = i+1;
-				break;
-			}
+
+			if(visit.start(target) != INVALID) goto stop;
 		}
+		stop:
+		int start = i+1;
 
 		Path<StaticDigraph> ret;
 
