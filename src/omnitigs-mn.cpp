@@ -86,6 +86,7 @@ private:
 	Path<StaticDigraph> longest_suffix(
 			Path<StaticDigraph> const& w,
 			StaticDigraph::Arc const& e,
+			FilterArcs<StaticDigraph>::ArcMap<bool>& target,
 			Dfs<FilterArcs<StaticDigraph>>& visit) {
 		auto& G = graph;
 
@@ -98,10 +99,11 @@ private:
 			auto f = w.nth(i);
 			for(StaticDigraph::InArcIt f1(G, G.target(f)); f1 != INVALID; ++f1) {
 				if(f1 == f || f1 == e) continue;
-				if(visit.reached(G.source(f1))) {
-					start = i+1;
-					break;
-				}
+				target[f1] = true;
+			}
+			if(visit.start(target) != INVALID) {
+				start = i+1;
+				break;
 			}
 		}
 
@@ -146,14 +148,15 @@ private:
 		Ge.disable(e);
 
 		Dfs<FilterArcs<StaticDigraph>> visit(Ge);
+		visit.init();
+		visit.addSource(G.source(e));
 
-		visit.run(G.source(e));
-
-		// find any last edge g which closes a path
-		StaticDigraph::InArcIt g(G, G.source(e));
-		for(; g != INVALID; ++g) {
-			if(visit.reached(G.source(g))) break;
+		// make a closed path
+		FilterArcs<StaticDigraph>::ArcMap<bool> target(Ge, false);
+		for(StaticDigraph::InArcIt g(G, G.source(e)); g != INVALID; ++g) {
+			target[g] = true;
 		}
+		auto g = visit.start(target);
 		assert(g != INVALID);
 
 		StaticDigraph::Arc f;
@@ -185,7 +188,7 @@ private:
 		fq.addFront(f);
 		assert(checkPath(G, fq));
 
-		auto w1 = longest_suffix(fq, e, visit);
+		auto w1 = longest_suffix(fq, e, target, visit);
 
 		assert(checkPath(G, w1));
 		assert(w1.back() == e);
@@ -204,7 +207,7 @@ private:
 			}
 			assert(checkPath(G, w2q));
 
-			res = longest_suffix(w2q, e, visit);
+			res = longest_suffix(w2q, e, target, visit);
 		}
 
 		assert(checkPath(G, res));
