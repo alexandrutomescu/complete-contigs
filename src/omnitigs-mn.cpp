@@ -86,8 +86,8 @@ private:
 	Path<StaticDigraph> longest_suffix(
 			Path<StaticDigraph> const& w,
 			StaticDigraph::Arc const& e,
-			FilterArcs<StaticDigraph>::ArcMap<bool>& target,
-			Dfs<FilterArcs<StaticDigraph>>& visit) {
+			FilterArcs<StaticDigraph>::NodeMap<bool>& target,
+			Bfs<FilterArcs<StaticDigraph>>& visit) {
 		auto& G = graph;
 
 		assert(checkPath(G, w));
@@ -99,7 +99,8 @@ private:
 			auto f = w.nth(i);
 			for(StaticDigraph::InArcIt f1(G, G.target(f)); f1 != INVALID; ++f1) {
 				if(f1 == f || f1 == e) continue;
-				target[f1] = true;
+				auto u = G.source(f1);
+				target[u] = true;
 			}
 			if(visit.start(target) != INVALID) {
 				start = i+1;
@@ -147,16 +148,22 @@ private:
 
 		Ge.disable(e);
 
-		Dfs<FilterArcs<StaticDigraph>> visit(Ge);
+		Bfs<FilterArcs<StaticDigraph>> visit(Ge);
 		visit.init();
 		visit.addSource(G.source(e));
 
 		// make a closed path
-		FilterArcs<StaticDigraph>::ArcMap<bool> target(Ge, false);
+		FilterArcs<StaticDigraph>::NodeMap<bool> target(Ge, false);
+		unordered_map<int, StaticDigraph::Arc> prec_map;
 		for(StaticDigraph::InArcIt g(G, G.source(e)); g != INVALID; ++g) {
-			target[g] = true;
+			StaticDigraph::Node u = G.source(g);
+			prec_map[G.id(u)] = (StaticDigraph::Arc) g;
+			target[u] = true;
 		}
-		auto g = visit.start(target);
+		auto u = visit.start(target);
+		assert(u != INVALID);
+
+		auto g = prec_map.at(G.id(u));
 		assert(g != INVALID);
 
 		StaticDigraph::Arc f;
