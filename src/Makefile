@@ -1,23 +1,26 @@
 CC = g++
-FILES_ASSEMBLER = main.cpp utils.cpp OptionParser.cpp 
-FILES_MAXIMALITY = maximality.cpp
-OUT_EXE_ASSEMBLER = complete-contigs
-OUT_EXE_MAXIMALITY = maximality
+CPPFLAGS = -O3 -DNDEBUG -fopenmp -std=c++0x -I $(PATH_TO_LEMON) -DMASSIVE_DATA_RLCSA
+LDFLAGS = -fopenmp
+
 PATH_TO_LEMON = ./lemon_binaries_linux/include/
 
-CPPFLAGS_ASSEMBLER = -O3 -DNDEBUG -fopenmp -std=c++0x -I $(PATH_TO_LEMON)
+OBJECTS_ASSEMBLER = complete-contigs.o utils.o OptionParser.o 
+OBJECTS_MAXIMALITY = maximality.o rlcsa/rlcsa.a
 
-CPPFLAGS_MAXIMALITY = -O3 -fopenmp -std=c++0x -DMASSIVE_DATA_RLCSA
+EXECUTABLES = complete-contigs maximality
 
-COMPILE_RLCSA = mkdir -p ../bin/rlcsa; cp -r rlcsa/ ../bin/; cd ../bin/rlcsa; make build_rlcsa; cd ../../src/
+# use default make rules
+# see https://www.gnu.org/software/make/manual/html_node/Catalogue-of-Rules.html#Catalogue-of-Rules
 
-.PHONY: build maximality clean
+build: $(EXECUTABLES)
 
-build:
-	mkdir -p ../bin; cd ../src/; $(CC) $(CPPFLAGS_ASSEMBLER) -o ../bin/$(OUT_EXE_ASSEMBLER) $(FILES_ASSEMBLER)
+complete-contigs: $(OBJECTS_ASSEMBLER)
+maximality: $(OBJECTS_MAXIMALITY)
 
-maximality:
-	$(COMPILE_RLCSA); $(CC) $(CPPFLAGS_MAXIMALITY) -o ../bin/$(OUT_EXE_MAXIMALITY) $(FILES_MAXIMALITY) ../bin/rlcsa/rlcsa.a
-
+rlcsa/rlcsa.a:
+	make -C rlcsa build_rlcsa
+	
 clean:
-	rm -f ../bin/$(OUT_EXE_ASSEMBLER); rm -f ../bin/$(OUT_EXE_MAXIMALITY); rm -fr ../bin/rlcsa
+	rm -f $(OBJECTS_ASSEMBLER) $(OBJECTS_MAXIMALITY) $(EXECUTABLES)
+
+.PHONY: build clean
