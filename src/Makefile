@@ -4,7 +4,7 @@ LDFLAGS = -fopenmp
 
 PATH_TO_LEMON = ./lemon_binaries_linux/include/
 
-OBJECTS_ASSEMBLER = complete-contigs.o utils.o OptionParser.o 
+OBJECTS_ASSEMBLER = complete-contigs.o utils.o OptionParser.o omnitigs-nm.o
 OBJECTS_MAXIMALITY = maximality.o rlcsa/rlcsa.a
 
 EXECUTABLES = complete-contigs maximality
