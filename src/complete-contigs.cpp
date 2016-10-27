@@ -1105,20 +1105,20 @@ int main(int argc, char **argv)
 		cout << "Time: " << currentDateTime();	
 		/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
 		/*stats*/ fileStats << "omnitigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
-	}
 
-	{
-		/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
-		vector<contig> omnitigs = compute_omnitigs_nm(graph);
-		populate_with_strings_from_node_labels(sequence, kmersize, graph, nodeLabel, omnitigs);
-		cout << "----------------------" << endl;
-		cout << "Statistics on omnitigs (nm):" << endl;
-		cout << "----------------------" << endl;
-		compute_statistics(omnitigs, seqLength);
-		print_collection(omnitigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".omnitigsnm");
-		cout << "Time: " << currentDateTime();
-		/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
-		/*stats*/ fileStats << "omnitigsnm," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
+		{
+			/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
+			vector<contig> omnitigs = compute_omnitigs_nm(graph);
+			populate_with_strings_from_node_labels(sequence, kmersize, graph, nodeLabel, omnitigs);
+			cout << "----------------------" << endl;
+			cout << "Statistics on omnitigs (nm):" << endl;
+			cout << "----------------------" << endl;
+			compute_statistics(omnitigs, seqLength);
+			print_collection(omnitigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".omnitigsnm");
+			cout << "Time: " << currentDateTime();
+			/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
+			/*stats*/ fileStats << "omnitigsnm," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
+		}	
 	}
 	
 	fileStats.close();

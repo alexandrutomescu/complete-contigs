@@ -345,13 +345,14 @@ void align_reads(const RLCSA* rlcsa,
 	vector<size_t>& next_snp,
 	unordered_map<uint64_t,SNP_info> SNP_map,
 	vector<size_t>& next_exon_start,
-	vector<size_t>& next_exon_end)
+	vector<size_t>& next_exon_end,
+	string algorithm)
 {
 
 	bool snp_analysis = prefixSum_snp.size();
 	bool exon_analysis = next_exon_end.size() > 0 ? true : false;
 
-	fileStats << previous_line << ",";
+	fileStats << previous_line << algorithm << ",";
 
 	uint64_t genomeLength = get_genome_length(referenceFileName);
 	double totalLength = 0;
@@ -706,9 +707,9 @@ int main(int argc, char** argv)
 	
 	ofstream fileStats;
 	fileStats.open(outputStatsFileName);
-	fileStats << header_line << ",genome length,#strings,AVG_length,MAX_length,E-size,AVG #SNPs/c,MAX #SNPs/c,#SNP pairs in same contig,total exon content,AVG exon content,total n_exons,AVG n_exons,unmapped" << endl;
+	fileStats << header_line << "algorithm,genome length,#strings,AVG_length,MAX_length,E-size,AVG #SNPs/c,MAX #SNPs/c,#SNP pairs in same contig,total exon content,AVG exon content,total n_exons,AVG n_exons,unmapped" << endl;
 
-	for (string algorithm : { "unitigs",  "YtoV-contigs", "omnitigs.maximal"}) // "non-switching-contigs",
+	for (string algorithm : { "unitigs",  "YtoV-contigs", "omnitigs.maximal", "omnitigsnm"}) // "non-switching-contigs",
 	{
 
 		ofstream fileDumpContigStats;
@@ -737,6 +738,10 @@ int main(int argc, char** argv)
 		{
 			previous_line = omnitigs_line;
 		}
+		if (algorithm == "omnitigsnm")
+		{
+			previous_line = omnitigs_line;
+		}
 
 	 	// we load the reads
  		get_reads(readFileName + "." + algorithm, reads, read_labels);
@@ -756,7 +761,8 @@ int main(int argc, char** argv)
 			next_snp,
 			SNP_map,
 			next_exon_start,
-			next_exon_end);
+			next_exon_end,
+			algorithm);
 
  		reads.clear();
  		read_labels.clear();
