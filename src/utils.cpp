@@ -570,8 +570,11 @@ int load_data(string& sequence,
 		}
 		//contract_arcs(temporary_graph, temporary_length, temporary_seqStart, kmersize);
 		// saving graph to file
+		cout << "contract_arcs() finished" << endl;
 		try 
 		{
+			cout << "starting to copy the graph" << endl;
+
 			// copy temporary_graph into graph
 			ListDigraph::NodeMap<StaticDigraph::Node> nodeRef(temporary_graph);
 			ListDigraph::ArcMap<StaticDigraph::Arc> arcRef(temporary_graph);
@@ -582,10 +585,16 @@ int load_data(string& sequence,
 				length[nodeRef[node]] = temporary_length[node];
 				seqStart[nodeRef[node]] = temporary_seqStart[node];
 			}
+
+			cout << "created the maps" << endl;
+
 			digraphWriter(graph, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type + ".lgf").
 				nodeMap("length", length).
 				nodeMap("seqStart", seqStart).
 				run();
+
+			cout << "written the graph to file" << endl;
+
 			// print_graph_in_dot(graph, inputFileName, kmersize, genome_type);
 
 		} catch (Exception& error) 

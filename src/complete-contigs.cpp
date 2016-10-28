@@ -889,6 +889,7 @@ int main(int argc, char **argv)
 	bool do_not_contract_arcs;
 	bool do_not_compute_omnitigs;
 	bool do_not_optimize_length_2_omnitigs;
+	bool do_not_unitigs_and_ytov;
 	bool print_graph_in_dot_format;
 	int abundance = 1;
 	N_THREADS = 1;
@@ -923,6 +924,7 @@ int main(int argc, char **argv)
 	parser.add_option("-x", "--noomnitigs") .action("store_true") .set_default(false) .dest("noomnitigs") .help("do not compute omnitigs");
 	parser.add_option("-c", "--nocontract") .action("store_true") .set_default(false) .dest("nocontract") .help("do not contract arcs. WARNING: option used only for debugging; activating this option make the unitg algorithm report less and shorter unitigs");
 	parser.add_option("-l", "--nolength2opt") .action("store_true") .set_default(false) .dest("nolength2opt") .help("do not use the optimization with length-2 omnitigs. WARNING: used for testing purposes.");
+	parser.add_option("-v", "--noytov") .action("store_true") .set_default(false) .dest("noytov") .help("do not compute unitigs and YtoV contigs and do not apply YtoV reductions to the graph");
 
 
 	optparse::Values& options = parser.parse_args(argc, argv);
@@ -940,6 +942,7 @@ int main(int argc, char **argv)
 	do_not_compute_omnitigs = (options.get("noomnitigs") ? true : false);
  	print_graph_in_dot_format = (options.get("noomnitigs") ? true : false);
  	do_not_optimize_length_2_omnitigs = (options.get("nolength2opt") ? true : false);
+ 	do_not_unitigs_and_ytov = (options.get("noytov") ? true : false);
 
 	genome_type = (string) options.get("g");
 
@@ -1016,46 +1019,49 @@ int main(int argc, char **argv)
 		return EXIT_SUCCESS;
 	}
 
-	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
-	cout << "Time: " << currentDateTime();
-	vector<contig> unitigs;
-	unitigs = compute_unitigs(graph, length, seqStart, kmersize, sequence, inputFileName);
-	populate_with_strings(sequence, kmersize, graph, seqStart, length, unitigs);
-	cout << "----------------------" << endl;
-	cout << "Statistics on unitigs:" << endl;
-	cout << "----------------------" << endl;
-	compute_statistics(unitigs, seqLength);
-	print_collection(unitigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".unitigs");
-	cout << "Time: " << currentDateTime();
-	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
-	/*stats*/ fileStats << "unitigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
+	if (not do_not_unitigs_and_ytov)
+	{
+		/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
+		cout << "Time: " << currentDateTime();
+		vector<contig> unitigs;
+		unitigs = compute_unitigs(graph, length, seqStart, kmersize, sequence, inputFileName);
+		populate_with_strings(sequence, kmersize, graph, seqStart, length, unitigs);
+		cout << "----------------------" << endl;
+		cout << "Statistics on unitigs:" << endl;
+		cout << "----------------------" << endl;
+		compute_statistics(unitigs, seqLength);
+		print_collection(unitigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".unitigs");
+		cout << "Time: " << currentDateTime();
+		/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
+		/*stats*/ fileStats << "unitigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
 
-	// /*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
-	// vector<contig> non_switching_contigs;
-	// non_switching_contigs = compute_non_switching_contigs(graph, length, seqStart, kmersize, sequence, inputFileName);
-	// populate_with_strings(sequence, kmersize, graph, seqStart, length, non_switching_contigs);
-	// cout << "----------------------" << endl;
-	// cout << "Statistics on non-switching contigs:" << endl;
-	// cout << "----------------------" << endl;
-	// compute_statistics(non_switching_contigs, seqLength);
-	// print_collection(non_switching_contigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".non-switching-contigs");
-	// cout << "Time: " << currentDateTime();
-	// /*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
-	// /*stats*/ fileStats << "non-switching contigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
+		// /*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
+		// vector<contig> non_switching_contigs;
+		// non_switching_contigs = compute_non_switching_contigs(graph, length, seqStart, kmersize, sequence, inputFileName);
+		// populate_with_strings(sequence, kmersize, graph, seqStart, length, non_switching_contigs);
+		// cout << "----------------------" << endl;
+		// cout << "Statistics on non-switching contigs:" << endl;
+		// cout << "----------------------" << endl;
+		// compute_statistics(non_switching_contigs, seqLength);
+		// print_collection(non_switching_contigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".non-switching-contigs");
+		// cout << "Time: " << currentDateTime();
+		// /*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
+		// /*stats*/ fileStats << "non-switching contigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
 
-	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
-	cout << "Time: " << currentDateTime();
-	vector<contig> YtoV_contigs;
-	YtoV_contigs = compute_YtoV_contigs_and_reduce(graph, length, seqStart, nodeLabel, kmersize, sequence, inputFileName, genome_type, seqLength);
-	populate_with_strings_from_node_labels(sequence, kmersize, graph, nodeLabel, YtoV_contigs);
-	cout << "----------------------" << endl;
-	cout << "Statistics on YtoV contigs:" << endl;
-	cout << "----------------------" << endl;
-	compute_statistics(YtoV_contigs, seqLength);
-	print_collection(YtoV_contigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".YtoV-contigs");
-	cout << "Time: " << currentDateTime();
-	/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
-	/*stats*/ fileStats << "YtoV contigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
+		/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
+		cout << "Time: " << currentDateTime();
+		vector<contig> YtoV_contigs;
+		YtoV_contigs = compute_YtoV_contigs_and_reduce(graph, length, seqStart, nodeLabel, kmersize, sequence, inputFileName, genome_type, seqLength);
+		populate_with_strings_from_node_labels(sequence, kmersize, graph, nodeLabel, YtoV_contigs);
+		cout << "----------------------" << endl;
+		cout << "Statistics on YtoV contigs:" << endl;
+		cout << "----------------------" << endl;
+		compute_statistics(YtoV_contigs, seqLength);
+		print_collection(YtoV_contigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".YtoV-contigs");
+		cout << "Time: " << currentDateTime();
+		/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
+		/*stats*/ fileStats << "YtoV contigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
+	}
 
 	// vector<contig> omnitigs_2;
 	// omnitigs_2 = compute_omnitigs_2(graph, length, seqStart, safe_pairs, kmersize, sequence, inputFileName);
@@ -1099,20 +1105,20 @@ int main(int argc, char **argv)
 		cout << "Time: " << currentDateTime();	
 		/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
 		/*stats*/ fileStats << "omnitigs," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
-	}
 
-	{
-		/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
-		vector<contig> omnitigs = compute_omnitigs_nm(graph);
-		populate_with_strings_from_node_labels(sequence, kmersize, graph, nodeLabel, omnitigs);
-		cout << "----------------------" << endl;
-		cout << "Statistics on omnitigs (nm):" << endl;
-		cout << "----------------------" << endl;
-		compute_statistics(omnitigs, seqLength);
-		print_collection(omnitigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".omnitigsnm");
-		cout << "Time: " << currentDateTime();
-		/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
-		/*stats*/ fileStats << "omnitigsnm," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
+		{
+			/*stats*/ clock_gettime(CLOCK_MONOTONIC, &start_clock);
+			vector<contig> omnitigs = compute_omnitigs_nm(graph);
+			populate_with_strings_from_node_labels(sequence, kmersize, graph, nodeLabel, omnitigs);
+			cout << "----------------------" << endl;
+			cout << "Statistics on omnitigs (nm):" << endl;
+			cout << "----------------------" << endl;
+			compute_statistics(omnitigs, seqLength);
+			print_collection(omnitigs, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type, ".omnitigsnm");
+			cout << "Time: " << currentDateTime();
+			/*stats*/ clock_gettime(CLOCK_MONOTONIC, &finish_clock);
+			/*stats*/ fileStats << "omnitigsnm," << countNodes(graph) << "," << countArcs(graph) << "," << (finish_clock.tv_sec - start_clock.tv_sec) + (finish_clock.tv_nsec - start_clock.tv_nsec) / 1000000000.0 << endl;
+		}	
 	}
 	
 	fileStats.close();
