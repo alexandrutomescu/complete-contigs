@@ -4,43 +4,95 @@
 // TODO: Omnitigs containing non-strong-bridges are not computed, yet
 
 class OmnitigNM {
-	StaticDigraph& graph;
-	StaticDigraph::NodeMap<bool> is_branching;
-	StaticDigraph::ArcMap<bool> is_branch;
-	StaticDigraph::ArcMap<bool> is_strong_bridge;
-	StaticDigraph::ArcMap<bool> computation_started;
+	StaticDigraph& G;
+
+	OutDegMap<StaticDigraph> out_deg;
+	InDegMap<StaticDigraph> in_deg;
+
+	StaticDigraph::ArcMap<bool> redundant; // not a strong bridge
+
+	/*
+	 * prec[e] == f if $f \prec e$,
+	 * and prec[e] == INVALID otherwise
+	 */
+	StaticDigraph::ArcMap<StaticDigraph::Arc> prec;
+
+	StaticDigraph::ArcMap<bool> compiling_started;
+
 	StaticDigraph::ArcMap<Path<StaticDigraph>> omnitig_ending_with;
-	vector<int> strong_branches;
-	int started_count = 0;
-	int optimized_visits = 0;
+
+	/*
+	 * longest_suffix_length[e] = length of the longest suffix of pe
+	 * such that there are no back-paths from a sibling branch e'' of e'
+	 */
+	StaticDigraph::ArcMap<int> longest_suffix_length;
+
+	/*
+	 * whether the left-maximal omnitig $wep$,
+	 * where $p$ is univocal,
+	 * is also right-maximal.
+	 */
+	StaticDigraph::ArcMap<bool> maximal;
 
 public:
 	OmnitigNM(StaticDigraph& G) :
-		graph(G),
-		is_branching(G, false),
-		is_branch(G, false),
-		is_strong_bridge(G, false),
-		computation_started(G, false),
-		omnitig_ending_with(G)
-	{}
+					G(G),
+					out_deg(G),
+					in_deg(G),
+					redundant(G, true),
+					prec(G, INVALID),
+					compiling_started(G, false),
+					omnitig_ending_with(G),
+					longest_suffix_length(G, -1),
+					maximal(G, true) {
+	}
 
-	vector<contig> run()
-	{
+	vector<contig> run() {
 		cout << "Entered omnitigs O(nm)" << endl;
 
 		cout << "Computing branches/strong bridge candidates...";
 		compute_strong_bridge_candidates();
-		compute_branches();
-		compute_strong_branches();
 		cout << " done." << endl;
 
 		return compute_all_omnitigs();
 	}
 
 private:
-	void compute_strong_bridge_candidates() {
-		auto& G = graph;
+	StaticDigraph::Node extend_backward_univocal(
+			StaticDigraph::Node node,
+			Path<StaticDigraph>& path) {
+		assert(path.length() == 0 || pathSource(G, path) == node);
 
+		while (in_deg[node] == 1) {
+			StaticDigraph::Arc next = StaticDigraph::InArcIt(G, node);
+			path.addFront(next);
+			node = G.source(next);
+		}
+
+		assert(checkPath(G, path));
+		assert(path.length() == 0 || pathSource(G, path) == node);
+
+		return node;
+	}
+
+StaticDigraph::Node extend_forward_univocal(
+			StaticDigraph::Node node,
+			Path<StaticDigraph>& path) {
+		assert(path.length() == 0 || pathTarget(G, path) == node);
+
+		while (out_deg[node] == 1) {
+			StaticDigraph::Arc next = StaticDigraph::OutArcIt(G, node);
+			path.addBack(next);
+			node = G.target(next);
+		}
+
+		assert(checkPath(G, path));
+		assert(path.length() == 0 || pathTarget(G, path) == node);
+
+		return node;
+	}
+
+void compute_strong_bridge_candidates() {
 		StaticDigraph::NodeIt u(G);
 		ReverseDigraph<StaticDigraph> GR(G);
 
@@ -51,212 +103,203 @@ private:
 
 		for (StaticDigraph::NodeIt u(G); u != INVALID; ++u) {
 			auto e = visit.predArc(u);
-			if (e != INVALID) is_strong_bridge[e] = true;
+			if (e != INVALID) redundant[e] = false;
 			auto f = rvisit.predArc(u);
-			if (f != INVALID) is_strong_bridge[f] = true;
+			if (f != INVALID) redundant[f] = false;
 		}
 	}
 
-	void compute_branches() {
-		auto& G = graph;
+	bool try_closed_path_omnitig(
+			StaticDigraph::Arc e,
+			const Path<StaticDigraph>& q0) {
+		StaticDigraph::Node se = G.source(e);
+		if (out_deg[se] > 2) return false;
 
-		for (StaticDigraph::NodeIt u(G); u != INVALID; ++u) {
-			int out_deg = countOutArcs(G, u);
-			assert(out_deg > 0);
-			is_branching[u] = (out_deg > 1);
-			if (!is_branching[u]) {
-				auto e = StaticDigraph::OutArcIt(G, u);
-				is_branch[e] = false;
-			} else {
-				for (StaticDigraph::OutArcIt e(G, u); e != INVALID; ++e) {
-					is_branch[e] = true;
-				}
-			}
+		StaticDigraph::OutArcIt e1(G, se);
+		if (e1 == e) ++e1;
+
+		Path<StaticDigraph> p;
+		p.addBack(e1);
+		StaticDigraph::Node tp = extend_forward_univocal(G.target(e1), p);
+
+		if (tp != se) return false;
+
+		// p0 is a closed path from s(e)
+		assert(checkPath(G, p));
+		assert(pathSource(G, p) == se);
+		assert(pathTarget(G, p) == se);
+
+		Path<StaticDigraph> w(q0);
+		for (Path<StaticDigraph>::ArcIt arc(p); arc != INVALID; ++arc) {
+			w.addBack(arc);
 		}
-	}
-
-	void compute_strong_branches() {
-		auto& G = graph;
-		for (StaticDigraph::ArcIt e(G); e != INVALID; ++e) {
-			if (is_branch[e] && is_strong_bridge[e]) {
-				strong_branches.push_back(G.id(e));
-			}
-		}
-	}
-
-	template <class Visit>
-	Path<StaticDigraph> longest_suffix(
-			Path<StaticDigraph> const& w,
-			StaticDigraph::Arc const& e,
-			Visit& visit) {
-		auto& G = graph;
+		w.addBack(e);
 
 		assert(checkPath(G, w));
-		assert(pathTarget(G, w) == G.source(e));
-		assert(is_strong_bridge[e]);
+		assert(w.length() == q0.length() + p.length() + 1);
 
-		int start = 0;
-		for(int i = w.length()-1; i >= 0; i--) {
-			auto f = w.nth(i);
-			for(StaticDigraph::InArcIt f1(G, G.target(f)); f1 != INVALID; ++f1) {
-				if(f1 == f || f1 == e) continue;
-				if(visit.reached(G.source(f1))) {
-					start = i+1;
+		omnitig_ending_with[e] = w;
+
+		return true;
+	}
+	bool try_redundant_arc_omnitig(
+			StaticDigraph::Arc e,
+			const Path<StaticDigraph>& q0) {
+		if (!redundant[e]) return false;
+
+		Path<StaticDigraph> w = q0;
+		w.addBack(e);
+		assert(checkPath(G, w));
+		omnitig_ending_with[e] = w;
+
+		return true;
+	}
+Path<StaticDigraph> longest_suffix(
+			const Path<StaticDigraph>& w,
+			StaticDigraph::Arc e,
+			const Bfs<FilterArcs<StaticDigraph> >& visit) {
+		Path<StaticDigraph> suffix;
+		suffix.addBack(e);
+		for (int i = w.length() - 1; i >= 0; i--) {
+			StaticDigraph::Arc f = w.nth(i);
+			bool stop = false;
+			for (StaticDigraph::InArcIt f1(G, G.target(f)); f1 != INVALID;
+					++f1) {
+				if (f1 == f || f1 == e) continue;
+
+				if (visit.reached(G.source(f1))) {
+					stop = true;
 					break;
 				}
 			}
+			if (stop) break;
+
+			suffix.addFront(f);
 		}
-
-		Path<StaticDigraph> ret;
-
-		for(int i = start; i < w.length(); i++) {
-			ret.addBack(w.nth(i));
-		}
-		ret.addBack(e);
-
-		assert(checkPath(G, ret));
-		assert(ret.back() == e);
-
-		return ret;
+		assert(checkPath(G, suffix));
+		return suffix;
 	}
+void process_branch(StaticDigraph::Arc e) {
+		StaticDigraph::Node se = G.source(e);
 
-	void compute_omnitig_ending_with(StaticDigraph::Arc const& e)
-	{
-		auto& G = graph;
-		auto& res = omnitig_ending_with[e];
+		assert(out_deg[se] >= 2);
 
-		assert(is_branch[e]);
-		assert(is_strong_bridge[e]);
+		Path<StaticDigraph> q0;
+		StaticDigraph::Node sq0 = se;
+		sq0 = extend_backward_univocal(sq0, q0);
 
-		if (res.length()) {
-			assert(computation_started[e]);
-			return;
-		}
-		assert(!computation_started[e]); // check acyclic
-
-		computation_started[e] = true;
-
-		if(++started_count % 1000 == 0) {
-			cout << "Strong branch #" << started_count << "/" << strong_branches.size();
-			cout << " Time: " << currentDateTime();
-		}
+		if (try_closed_path_omnitig(e, q0)) return;
+		if (try_redundant_arc_omnitig(e, q0)) return;
 
 		StaticDigraph::ArcMap<bool> Ge_map(G, true);
 		FilterArcs<StaticDigraph> Ge(G, Ge_map);
-
 		Ge.disable(e);
 
 		Bfs<FilterArcs<StaticDigraph>> visit(Ge);
 		visit.init();
-		visit.addSource(G.source(e));
+		visit.addSource(se);
 
-		// Optimization: visit at most two in-neighbors of s(e)
+		// Optimization: visit at most two in-neighbors of s(q0)
 		FilterArcs<StaticDigraph>::NodeMap<bool> target(Ge, false);
-		for(StaticDigraph::InArcIt g(G, G.source(e)); g != INVALID; ++g) {
+		for (StaticDigraph::InArcIt g(G, sq0); g != INVALID; ++g) {
 			target[G.source(g)] = true;
 		}
-
 		visit.start(target);
-		if(visit.start(target) != INVALID) {
-			optimized_visits++;
-			if(optimized_visits % 1000 == 0) {
-				cout << "Optimized visits: " << optimized_visits << endl;
-			}
-		}
+		visit.start(target);
 
 		// make a closed path
-		StaticDigraph::InArcIt g(G, G.source(e));
-		for(; g != INVALID; ++g) {
-			if(visit.reached(G.source(g))) break;
+		StaticDigraph::InArcIt g(G, sq0);
+		for (; g != INVALID; ++g) {
+			if (visit.reached(G.source(g))) break;
 		}
 		assert(g != INVALID);
 
 		Path<StaticDigraph> e1p(visit.path(G.source(g)));
 		e1p.addBack(g);
+		for (int i = 0; i < q0.length(); i++) {
+			e1p.addBack(q0.nth(i));
+		}
 
-		// e1p is a closed path from s(e)
+		// e1pq0 is a closed path from s(e)
 		assert(checkPath(G, e1p));
 		assert(pathSource(G, e1p) == G.source(e));
 		assert(pathTarget(G, e1p) == G.source(e));
 
-		// first edge of e1p is e1 != e
-		assert(e1p.front() != e);
+		Path<StaticDigraph> suffix = longest_suffix(e1p, e, visit);
+		for (int i = suffix.length() - 2; i >= 0; i--) {
+			StaticDigraph::Arc f = suffix.nth(i);
 
-		StaticDigraph::Arc f;
-		Path<StaticDigraph> q;
-		for(int i = e1p.length()-1; i >= 0; i--) {
-			StaticDigraph::Arc fi = e1p.nth(i);
-			if (is_branch[fi]) {
-				f = fi;
+			if (out_deg[G.source(f)] >= 2) {
+				assert(prec[e] == INVALID);
+				assert(f != e);
+				prec[e] = f;
 				break;
 			}
-			q.addFront(fi);
 		}
 
-		assert(checkPath(G, q));
-		assert(is_branch[f]);
-
-		Path<StaticDigraph> fq(q);
-		fq.addFront(f);
-		assert(checkPath(G, fq));
-
-		auto w1 = longest_suffix(fq, e, visit);
-
-		assert(checkPath(G, w1));
-		assert(w1.back() == e);
-
-		if(w1.length() <= fq.length()) {
-			res = w1;
+		if (prec[e] == INVALID) {
+			omnitig_ending_with[e] = suffix;
 		} else {
-			assert(w1.length() == fq.length() + 1);
-			assert(w1.front() == f);
-
-			compute_omnitig_ending_with(f);
-
-			Path<StaticDigraph> w2q = omnitig_ending_with[f];
-			for(Path<StaticDigraph>::ArcIt g(q); g != INVALID; ++g) {
-				w2q.addBack(g);
-			}
-			assert(checkPath(G, w2q));
-
-			res = longest_suffix(w2q, e, visit);
+			longest_suffix_length[e] = suffix.length();
 		}
-
-		assert(checkPath(G, res));
 	}
 
-	vector<contig> compute_all_omnitigs()
-	{
-		auto& G = graph;
+	void compile_omnitig_ending_with(StaticDigraph::Arc e) {
+		StaticDigraph::Arc f = prec[e];
+		if (f == INVALID) return;
+		if (omnitig_ending_with[e].length()) return;
+
+		assert(!compiling_started[e]);
+		compiling_started[e] = true;
+
+		compile_omnitig_ending_with(f);
+
+		Path<StaticDigraph> w = omnitig_ending_with[f];
+		extend_forward_univocal(pathTarget(G, w), w);
+		w.addBack(e);
+
+		assert(checkPath(G, w));
+
+		assert(w.length() >= longest_suffix_length[e]);
+		while (w.length() > longest_suffix_length[e]) {
+			w.eraseFront();
+		}
+
+		omnitig_ending_with[e] = w;
+	}
+
+	vector<contig> compute_all_omnitigs() {
+		for (StaticDigraph::ArcIt e(G); e != INVALID; ++e) {
+			if (out_deg[G.source(e)] == 1) continue;
+			process_branch(e);
+		}
 
 		vector<contig> ret;
-		for (auto it = strong_branches.cbegin(); it != strong_branches.cend(); ++it) {
-			const auto& e = G.arc(*it);
-			assert(is_strong_bridge[e]);
-			assert(is_branch[e]);
 
-			compute_omnitig_ending_with(e);
+		for (StaticDigraph::ArcIt e(G); e != INVALID; ++e) {
+			if (out_deg[G.source(e)] == 1) continue;
+			compile_omnitig_ending_with(e);
 
-			auto w = omnitig_ending_with[e];
+			Path<StaticDigraph> w = omnitig_ending_with[e];
+			extend_forward_univocal(G.target(e), w);
 
-			while (!is_branching[pathTarget(G, w)]) {
-				w.addBack(StaticDigraph::OutArcIt(G, pathTarget(G, w)));
-			}
+			assert(checkPath(G, w));
 
 			contig entry;
 			for (Path<StaticDigraph>::ArcIt f(w); f != INVALID; ++f) {
 				entry.nodes.push_back(G.id(G.source(f)));
 			}
 			entry.nodes.push_back(G.id(pathTarget(G, w)));
+
 			ret.push_back(entry);
 		}
+
 		return ret;
 	}
 
-};
+			};
 
-vector<contig> compute_omnitigs_nm(StaticDigraph& G)
-{
+vector<contig> compute_omnitigs_nm(StaticDigraph& G) {
 	return OmnitigNM(G).run();
 }
 

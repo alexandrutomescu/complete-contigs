@@ -1,5 +1,6 @@
 CC = g++
-CPPFLAGS = -O3 -DNDEBUG -fopenmp -std=c++0x -I $(PATH_TO_LEMON) -DMASSIVE_DATA_RLCSA
+CPPFLAGS_OPT= -O3 -DNDEBUG
+CPPFLAGS = $(CPPFLAGS_OPT) -fopenmp -std=c++0x -I $(PATH_TO_LEMON) -DMASSIVE_DATA_RLCSA
 LDFLAGS = -fopenmp
 
 PATH_TO_LEMON = ./lemon_binaries_linux/include/
