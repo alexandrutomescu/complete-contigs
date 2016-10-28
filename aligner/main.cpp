@@ -714,7 +714,7 @@ int main(int argc, char** argv)
 	fileStats.open(outputStatsFileName);
 	fileStats << header_line << "algorithm,genome length,#strings,AVG_length,MAX_length,E-size,AVG #SNPs/c,MAX #SNPs/c,#SNP pairs in same contig,total exon content,AVG exon content,total n_exons,AVG n_exons,unmapped" << endl;
 
-	for (string algorithm : { "unitigs",  "YtoV-contigs", "omnitigs.maximal", "omnitigsnm"}) // "non-switching-contigs",
+	for (string algorithm : { "unitigs",  "YtoV-contigs", "omnitigs.maximal", "omnitigsnm", "omnitigsnm.maximal"}) // "non-switching-contigs",
 	{
 
 		if (not is_readable(readFileName + "." + algorithm))

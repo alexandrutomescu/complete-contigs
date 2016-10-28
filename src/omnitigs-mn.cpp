@@ -75,7 +75,7 @@ private:
 		return node;
 	}
 
-StaticDigraph::Node extend_forward_univocal(
+	StaticDigraph::Node extend_forward_univocal(
 			StaticDigraph::Node node,
 			Path<StaticDigraph>& path) {
 		assert(path.length() == 0 || pathTarget(G, path) == node);
@@ -92,7 +92,7 @@ StaticDigraph::Node extend_forward_univocal(
 		return node;
 	}
 
-void compute_strong_bridge_candidates() {
+	void compute_strong_bridge_candidates() {
 		StaticDigraph::NodeIt u(G);
 		ReverseDigraph<StaticDigraph> GR(G);
 
@@ -154,7 +154,8 @@ void compute_strong_bridge_candidates() {
 
 		return true;
 	}
-Path<StaticDigraph> longest_suffix(
+
+	Path<StaticDigraph> longest_suffix(
 			const Path<StaticDigraph>& w,
 			StaticDigraph::Arc e,
 			const Bfs<FilterArcs<StaticDigraph> >& visit) {
@@ -179,7 +180,8 @@ Path<StaticDigraph> longest_suffix(
 		assert(checkPath(G, suffix));
 		return suffix;
 	}
-void process_branch(StaticDigraph::Arc e) {
+
+	void process_branch(StaticDigraph::Arc e) {
 		StaticDigraph::Node se = G.source(e);
 
 		assert(out_deg[se] >= 2);
@@ -261,6 +263,12 @@ void process_branch(StaticDigraph::Arc e) {
 		assert(checkPath(G, w));
 
 		assert(w.length() >= longest_suffix_length[e]);
+
+
+		if(w.length() == longest_suffix_length[e]) {
+			maximal[f] = false;
+		}
+
 		while (w.length() > longest_suffix_length[e]) {
 			w.eraseFront();
 		}
@@ -269,16 +277,22 @@ void process_branch(StaticDigraph::Arc e) {
 	}
 
 	vector<contig> compute_all_omnitigs() {
+		// TODO: parallelize this
 		for (StaticDigraph::ArcIt e(G); e != INVALID; ++e) {
 			if (out_deg[G.source(e)] == 1) continue;
 			process_branch(e);
+		}
+
+		for (StaticDigraph::ArcIt e(G); e != INVALID; ++e) {
+			if (out_deg[G.source(e)] == 1) continue;
+			compile_omnitig_ending_with(e);
 		}
 
 		vector<contig> ret;
 
 		for (StaticDigraph::ArcIt e(G); e != INVALID; ++e) {
 			if (out_deg[G.source(e)] == 1) continue;
-			compile_omnitig_ending_with(e);
+			if (!maximal[e]) continue;
 
 			Path<StaticDigraph> w = omnitig_ending_with[e];
 			extend_forward_univocal(G.target(e), w);
@@ -297,7 +311,7 @@ void process_branch(StaticDigraph::Arc e) {
 		return ret;
 	}
 
-			};
+};
 
 vector<contig> compute_omnitigs_nm(StaticDigraph& G) {
 	return OmnitigNM(G).run();
