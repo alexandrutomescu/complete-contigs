@@ -26,6 +26,11 @@ struct SNP_info
 	int64_t max_snps_on_contig;
 };
 
+bool is_readable( const std::string & file ) 
+{ 
+    std::ifstream f( file.c_str() ); 
+    return !f.fail(); 
+}
 
 uint64_t get_genome_length(string referenceFileName)
 {
@@ -711,6 +716,11 @@ int main(int argc, char** argv)
 
 	for (string algorithm : { "unitigs",  "YtoV-contigs", "omnitigs.maximal", "omnitigsnm"}) // "non-switching-contigs",
 	{
+
+		if (not is_readable(readFileName + "." + algorithm))
+		{
+			continue; 
+		}
 
 		ofstream fileDumpContigStats;
 		ofstream fileDumpSNPStats;
