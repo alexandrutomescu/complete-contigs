@@ -792,7 +792,6 @@ vector<contig> compute_omnitigs(StaticDigraph& graph,
 	#pragma omp parallel for num_threads(N_THREADS) shared(ret)
 	for (int i = 0; i < n_safe_pairs; i++)
 	{
-
 		//************** progress ************** //
 		#pragma omp critical
 		{
@@ -838,7 +837,6 @@ vector<contig> compute_omnitigs(StaticDigraph& graph,
 			}
 			continue;
 		}
-
 
 		vector<int> bad_in_nbrs;
 		for (StaticDigraph::InArcIt in_arc2(graph,graph.target(first_arc)); in_arc2 != INVALID; ++in_arc2)
@@ -931,7 +929,8 @@ int main(int argc, char **argv)
 
 	inputFileName = (string) options.get("i");
 	input_from_reads = (inputFileName.substr(inputFileName.find_last_of(".") + 1) == "fastq") ? true : false;
-	input_from_reads = (inputFileName.substr(inputFileName.find_last_of(".") + 1) == "FASTQ") ? true : false;
+	if (!input_from_reads)  // JEH 20170418
+		input_from_reads = (inputFileName.substr(inputFileName.find_last_of(".") + 1) == "FASTQ") ? true : false;
 
 	kmersize = (size_t) options.get("k");
 	abundance = (int) options.get("a");
@@ -977,7 +976,8 @@ int main(int argc, char **argv)
 	if (input_from_reads)
 	{
 		cout << "WARNING: input from reads is experimental and most likely will have bugs" << endl;
-		if (EXIT_SUCCESS != load_data_from_reads(sequence, seqLength, inputFileName, kmersize, circular_genome, do_not_contract_arcs, abundance, graph, length, seqStart, safe_pairs))
+// JEH 20170426		if (EXIT_SUCCESS != load_data_from_reads(sequence, seqLength, inputFileName, kmersize, circular_genome, do_not_contract_arcs, abundance, graph, length, seqStart, safe_pairs))
+		if (EXIT_SUCCESS != load_data_from_reads(sequence, seqLength, inputFileName, kmersize, circular_genome, do_not_contract_arcs, abundance, graph, length, seqStart, nodeLabel, safe_pairs))  // JEH 20170426
 		{
 			return EXIT_FAILURE;
 		}
@@ -1025,7 +1025,9 @@ int main(int argc, char **argv)
 		cout << "Time: " << currentDateTime();
 		vector<contig> unitigs;
 		unitigs = compute_unitigs(graph, length, seqStart, kmersize, sequence, inputFileName);
-		populate_with_strings(sequence, kmersize, graph, seqStart, length, unitigs);
+// JEH: This really shouldn't matter here except for perhaps memory consumption, but for testing I make it consistent with the others
+// JEH 20170424		populate_with_strings(sequence, kmersize, graph, seqStart, length, unitigs);
+		populate_with_strings_from_node_labels(sequence, kmersize, graph, nodeLabel, unitigs);  // JEH 20170424
 		cout << "----------------------" << endl;
 		cout << "Statistics on unitigs:" << endl;
 		cout << "----------------------" << endl;
@@ -1093,7 +1095,7 @@ int main(int argc, char **argv)
 		{
 			omnitigs = compute_omnitigs(graph, length, seqStart, safe_pairs, do_not_optimize_length_2_omnitigs);	
 		}
-		
+
 		// remove_non_maximal_contigs(omnitigs); 
 		//populate_with_strings(sequence, kmersize, graph, seqStart, length, omnitigs);
 		populate_with_strings_from_node_labels(sequence, kmersize, graph, nodeLabel, omnitigs);

@@ -65,6 +65,8 @@ private:
 
 		while (in_deg[node] == 1) {
 			StaticDigraph::Arc next = StaticDigraph::InArcIt(G, node);
+			if (G.source(next) == G.target(next))  // JEH 20170531  avoid self loop
+				break;  // JEH 20170531
 			path.addFront(next);
 			node = G.source(next);
 		}
@@ -208,6 +210,7 @@ private:
 		}
 		visit.start(target);
 		visit.start(target);
+//??? JEH why call twice ???
 
 		// make a closed path
 		StaticDigraph::InArcIt g(G, sq0);

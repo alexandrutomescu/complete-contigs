@@ -23,6 +23,7 @@ void make_upper_case(string& s)
 		else if (s[i] == 'C') s[i] = 'C';
 		else if (s[i] == 'G') s[i] = 'G';
 		else if (s[i] == 'T') s[i] = 'T';
+		else if (s[i] == '#') s[i] = '#';  // JEH 20170418
 		else s[i] = 'N';
 	}
 }
@@ -353,6 +354,7 @@ void contract_arcs_from_reads(ListDigraph& graph,
 	cout << "arcsToContract has size: " << arcsToContract.size() << endl;
 	cout << "count_unary_arcs gives: " << count_unary_arcs_ld(graph) << endl;
 
+	progress = 0;  // JEH 20170418
 	for (auto arc : arcsToContract)
 	{
 		if (progress % 100000 == 0)
@@ -436,7 +438,8 @@ void construct_graph(ListDigraph& graph,
 	size_t progress = 0;
 
 	// traversing the sequence
-	for (size_t i = 0; i <= kmerLimit; i++)
+// JEH 20140424	for (size_t i = 0; i <= kmerLimit; i++)
+	for (size_t i = 0; i < kmerLimit; i++)  // JEH 20170424
 	{
 
 		if (progress % 1000000 == 0)
@@ -450,7 +453,8 @@ void construct_graph(ListDigraph& graph,
 		currentKmer = sequence.substr(i,kmersize);
 
 		// if current kmer contains # then skip it
-		if (currentKmer.find("#") != std::string::npos)
+// JEH 20170424		if (currentKmer.find("#") != std::string::npos)
+		if ((currentKmer.find("#") != std::string::npos) || (currentKmer.length() < kmersize))  // JEH 20170424
 		{
 			previousNode = INVALID;
 		}
@@ -484,7 +488,7 @@ void construct_graph(ListDigraph& graph,
 			}
 			previousNode = currentNode;
 		}
-	}	
+	}
 
 	// traversing the graph and removing the nodes with abundance strictly lower than abundance
 	vector<ListDigraph::Node> nodesToRemove;
@@ -543,17 +547,19 @@ int load_data(string& sequence,
         	sequence += line;
         }
 
-        seqLength = sequence.length();
+// JEH 20170612        seqLength = sequence.length();
         make_upper_case(sequence);
 
         if (circular_genome)
         {
         	sequence = sequence + sequence; // + sequence.substr(0,kmersize);
         }
+        seqLength = sequence.length();  // JEH 20170612 moved below doubling for a circular genome
         sequenceFile.close();  
 	} catch (Exception& error) 
 	{ // check if there was any error
-		std::cerr << "Error: " << error.what() << std::endl;
+// JEH 20170418		std::cerr << "Error: " << error.what() << std::endl;
+		std::cerr << "load_data_1:Error: " << error.what() << std::endl;  // JEH 20170418	
 		return EXIT_FAILURE;
 	}
 
@@ -588,6 +594,15 @@ int load_data(string& sequence,
 
 			cout << "created the maps" << endl;
 
+// JEH debug, shows node labels before reading file
+//printf("Node labels before reading file\n");
+//for (StaticDigraph::NodeIt node(graph); node != INVALID; ++node)
+//{
+//	nodeLabel[node] = sequence.substr(seqStart[node],length[node]);
+//cout << "   " << graph.id(node) << " : " << nodeLabel[node] << endl;
+//}
+// JEH
+
 			digraphWriter(graph, inputFileName + ".k" + std::to_string(kmersize) + "." + genome_type + ".lgf").
 				nodeMap("length", length).
 				nodeMap("seqStart", seqStart).
@@ -599,7 +614,8 @@ int load_data(string& sequence,
 
 		} catch (Exception& error) 
 		{ // check if there was any error
-			std::cerr << "Error: " << error.what() << std::endl;
+// JEH 20170418				std::cerr << "Error: " << error.what() << std::endl;
+		std::cerr << "load_data_2:Error: " << error.what() << std::endl;  // JEH 20170418	
 			return EXIT_FAILURE;
 		}
 		
@@ -630,16 +646,20 @@ int load_data(string& sequence,
 				seqStart[nodeRef[node]] = temporary_seqStart[node];
 			}
 			// attach the node labels
+// JEH debug, shows node labels before and after reading file
+//printf("Node labels after reading file\n");
 			for (StaticDigraph::NodeIt node(graph); node != INVALID; ++node)
 			{
 				nodeLabel[node] = sequence.substr(seqStart[node],length[node]);
+//cout << "   " << graph.id(node) << " : " << nodeLabel[node] << endl;
 			}
 
 
 		}
 		catch (Exception& error) 
 		{ // check if there was any error
-			std::cerr << "Error: " << error.what() << std::endl;
+// JEH 20170418			std::cerr << "Error: " << error.what() << std::endl;
+			std::cerr << "load_data_3:Error: " << error.what() << std::endl;  // JEH 20170418
 			return EXIT_FAILURE;
 		}
 	}
@@ -671,6 +691,7 @@ int load_data_from_reads(string& sequence,
 	StaticDigraph& graph,
 	StaticDigraph::NodeMap<size_t>& length,
 	StaticDigraph::NodeMap<size_t>& seqStart,
+	StaticDigraph::NodeMap<string>& nodeLabel,  // JEH 20170426
 	set_of_pairs& safe_pairs
 )
 {
@@ -707,7 +728,8 @@ int load_data_from_reads(string& sequence,
 	        sequenceFile.close();  
 		} catch (Exception& error) 
 		{ // check if there was any error
-			std::cerr << "Error: " << error.what() << std::endl;
+// JEH 20170418			std::cerr << "Error: " << error.what() << std::endl;
+			std::cerr << "load_data_from_reads_1:Error: " << error.what() << std::endl;  // JEH 20170418	
 			return EXIT_FAILURE;
 		}
 
@@ -743,12 +765,15 @@ int load_data_from_reads(string& sequence,
 
 		} catch (Exception& error) 
 		{ // check if there was any error
-			std::cerr << "Error: " << error.what() << std::endl;
+// JEH 20170418			std::cerr << "Error: " << error.what() << std::endl;
+			std::cerr << "load_data_from_reads_2:Error: " << error.what() << std::endl;  // JEH 20170418	
 			return EXIT_FAILURE;
 		}
 		
 	}
-	else
+	// JEH 20170426 else
+	// THERE IS SOME BUG WHEN NOT LOADING THE GRAPH FROM FILE
+	// SO WE ALWAYS LOAD IT FROM FILE
 	{
 		try 
 		{
@@ -772,13 +797,19 @@ int load_data_from_reads(string& sequence,
 				length[nodeRef[node]] = temporary_length[node];
 				seqStart[nodeRef[node]] = temporary_seqStart[node];
 			}
+			// attach the node labels  // JEH 20170426
+			for (StaticDigraph::NodeIt node(graph); node != INVALID; ++node)  // JEH 20170426
+			{  // JEH 20170426
+				nodeLabel[node] = sequence.substr(seqStart[node],length[node]);  // JEH 20170426
+			}  // JEH 20170426
 
 			print_graph_in_dot(graph, inputFileName, kmersize, genome_type);
 
 		}
 		catch (Exception& error) 
 		{ // check if there was any error
-			std::cerr << "Error: " << error.what() << std::endl;
+// JEH 20170418			std::cerr << "Error: " << error.what() << std::endl;
+			std::cerr << "load_data_from_reads_3:Error: " << error.what() << std::endl;  // JEH 20170418	
 			return EXIT_FAILURE;
 		}
 	}

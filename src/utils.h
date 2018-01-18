@@ -151,6 +151,7 @@ int load_data_from_reads(string& sequence,
 	StaticDigraph& graph,
 	StaticDigraph::NodeMap<size_t>& length,
 	StaticDigraph::NodeMap<size_t>& seqStart,
+	StaticDigraph::NodeMap<string>& nodeLabel,  // JEH 20170426
 	set_of_pairs& safe_pairs
 );
 
