@@ -511,6 +511,9 @@ void construct_graph(ListDigraph& graph,
 
 	cout << "Constructed the graph" << endl;
 
+	cout << "Non compacted graph has " << countNodes(graph) << " nodes" << endl;
+	cout << "Non compacted graph has " << countArcs(graph) << " arcs" << endl;
+
 }
 
 
